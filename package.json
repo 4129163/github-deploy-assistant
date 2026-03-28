@@ -1,0 +1,52 @@
+{
+  "name": "github-deploy-assistant",
+  "version": "1.0.0",
+  "description": "GitHub 项目辅助安装程序 - 自动解读仓库并部署",
+  "main": "src/server/index.js",
+  "bin": {
+    "gada": "./src/cli/index.js"
+  },
+  "scripts": {
+    "start": "node src/server/index.js",
+    "dev": "nodemon src/server/index.js",
+    "cli": "node src/cli/index.js",
+    "build": "echo 'Build complete'",
+    "test": "echo 'Tests not implemented yet'"
+  },
+  "keywords": [
+    "github",
+    "deploy",
+    "assistant",
+    "auto-install",
+    "ai",
+    "openai",
+    "deepseek"
+  ],
+  "author": "GitHub Deploy Assistant",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/4129163/github-deploy-assistant.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2",
+    "simple-git": "^3.21.0",
+    "fs-extra": "^11.1.1",
+    "sqlite3": "^5.1.6",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "marked": "^11.1.0",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1",
+    "boxen": "^5.1.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
