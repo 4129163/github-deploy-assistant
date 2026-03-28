@@ -1,0 +1,254 @@
+/**
+ * SQLite 数据库服务
+ */
+
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+
+const DB_PATH = path.join(__dirname, '../../database/gada.db');
+
+let db = null;
+
+function initDatabase() {
+  return new Promise((resolve, reject) => {
+    db = new sqlite3.Database(DB_PATH, (err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      
+      // 创建项目表
+      db.run(`
+        CREATE TABLE IF NOT EXISTS projects (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          repo_url TEXT NOT NULL,
+          local_path TEXT,
+          status TEXT DEFAULT 'pending',
+          project_type TEXT,
+          config TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      // 创建部署日志表
+      db.run(`
+        CREATE TABLE IF NOT EXISTS deploy_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER,
+          mode TEXT,
+          status TEXT,
+          output TEXT,
+          error TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+      `);
+      
+      // 创建配置表
+      db.run(`
+        CREATE TABLE IF NOT EXISTS configs (
+          key TEXT PRIMARY KEY,
+          value TEXT,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      // 创建对话记录表
+      db.run(`
+        CREATE TABLE IF NOT EXISTS conversations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER,
+          role TEXT,
+          content TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+      `, (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  });
+}
+
+function getDb() {
+  if (!db) {
+    throw new Error('Database not initialized');
+  }
+  return db;
+}
+
+// 项目相关操作
+const ProjectDB = {
+  create: (project) => {
+    return new Promise((resolve, reject) => {
+      const { name, repo_url, local_path, project_type, config } = project;
+      db.run(
+        'INSERT INTO projects (name, repo_url, local_path, project_type, config) VALUES (?, ?, ?, ?, ?)',
+        [name, repo_url, local_path, project_type, JSON.stringify(config)],
+        function(err) {
+          if (err) reject(err);
+          else resolve({ id: this.lastID, ...project });
+        }
+      );
+    });
+  },
+  
+  getAll: () => {
+    return new Promise((resolve, reject) => {
+      db.all('SELECT * FROM projects ORDER BY created_at DESC', (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows.map(r => ({ ...r, config: r.config ? JSON.parse(r.config) : null })));
+      });
+    });
+  },
+  
+  getById: (id) => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT * FROM projects WHERE id = ?', [id], (err, row) => {
+        if (err) reject(err);
+        else if (row) {
+          resolve({ ...row, config: row.config ? JSON.parse(row.config) : null });
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  },
+  
+  update: (id, updates) => {
+    return new Promise((resolve, reject) => {
+      const fields = [];
+      const values = [];
+      
+      for (const [key, value] of Object.entries(updates)) {
+        if (key === 'config') {
+          fields.push(`${key} = ?`);
+          values.push(JSON.stringify(value));
+        } else {
+          fields.push(`${key} = ?`);
+          values.push(value);
+        }
+      }
+      
+      values.push(id);
+      
+      db.run(
+        `UPDATE projects SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        values,
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  },
+  
+  delete: (id) => {
+    return new Promise((resolve, reject) => {
+      db.run('DELETE FROM projects WHERE id = ?', [id], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+};
+
+// 部署日志相关操作
+const DeployLogDB = {
+  create: (log) => {
+    return new Promise((resolve, reject) => {
+      const { project_id, mode, status, output, error } = log;
+      db.run(
+        'INSERT INTO deploy_logs (project_id, mode, status, output, error) VALUES (?, ?, ?, ?, ?)',
+        [project_id, mode, status, output, error],
+        function(err) {
+          if (err) reject(err);
+          else resolve({ id: this.lastID, ...log });
+        }
+      );
+    });
+  },
+  
+  getByProjectId: (projectId) => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT * FROM deploy_logs WHERE project_id = ? ORDER BY created_at DESC',
+        [projectId],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        }
+      );
+    });
+  }
+};
+
+// 配置相关操作
+const ConfigDB = {
+  get: (key) => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT value FROM configs WHERE key = ?', [key], (err, row) => {
+        if (err) reject(err);
+        else resolve(row ? row.value : null);
+      });
+    });
+  },
+  
+  set: (key, value) => {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'INSERT OR REPLACE INTO configs (key, value) VALUES (?, ?)',
+        [key, value],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+};
+
+// 对话记录相关操作
+const ConversationDB = {
+  create: (conversation) => {
+    return new Promise((resolve, reject) => {
+      const { project_id, role, content } = conversation;
+      db.run(
+        'INSERT INTO conversations (project_id, role, content) VALUES (?, ?, ?)',
+        [project_id, role, content],
+        function(err) {
+          if (err) reject(err);
+          else resolve({ id: this.lastID, ...conversation });
+        }
+      );
+    });
+  },
+  
+  getByProjectId: (projectId) => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT * FROM conversations WHERE project_id = ? ORDER BY created_at ASC',
+        [projectId],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        }
+      );
+    });
+  }
+};
+
+module.exports = {
+  initDatabase,
+  getDb,
+  ProjectDB,
+  DeployLogDB,
+  ConfigDB,
+  ConversationDB
+};
