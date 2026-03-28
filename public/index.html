@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Deploy Assistant (GADA) - 项目部署助手</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <h1>🚀 GitHub Deploy Assistant</h1>
+            <p class="subtitle">智能项目部署助手 - 让部署变得简单</p>
+        </header>
+
+        <!-- 导航 -->
+        <nav class="nav">
+            <button class="nav-btn active" data-tab="home">🏠 首页</button>
+            <button class="nav-btn" data-tab="projects">📂 项目列表</button>
+            <button class="nav-btn" data-tab="config">⚙️ 配置</button>
+        </nav>
+
+        <!-- 首页 - 仓库解析 -->
+        <div id="home" class="tab-content active">
+            <div class="card">
+                <h2>🔗 输入 GitHub 仓库地址</h2>
+                <div class="input-group">
+                    <input type="text" id="repoUrl" placeholder="https://github.com/username/repo" class="input">
+                    <button id="analyzeBtn" class="btn btn-primary">🔍 开始分析</button>
+                </div>
+                <p class="hint">支持格式: https://github.com/username/repo</p>
+            </div>
+
+            <!-- 分析结果 -->
+            <div id="analysisResult" class="hidden">
+                <div class="card">
+                    <h2>📊 仓库分析结果</h2>
+                    <div id="repoInfo"></div>
+                    
+                    <div id="deploymentOptions" class="hidden">
+                        <h3>选择部署模式</h3>
+                        <div class="mode-buttons">
+                            <button id="manualModeBtn" class="btn btn-secondary">
+                                📖 手动模式
+                                <small>查看详细安装教程，按步骤自行安装</small>
+                            </button>
+                            <button id="autoModeBtn" class="btn btn-primary">
+                                🤖 自动模式
+                                <small>一键自动安装部署（推荐）</small>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI 分析结果 -->
+                <div id="aiAnalysis" class="card hidden">
+                    <h2>🤖 AI 智能分析</h2>
+                    <div class="ai-content"></div>
+                </div>
+            </div>
+
+            <!-- 手动模式 - 部署指南 -->
+            <div id="manualGuide" class="hidden">
+                <div class="card">
+                    <div class="guide-header">
+                        <h2>📖 手动部署指南</h2>
+                        <button id="askAIBtn" class="btn btn-small">💬 有问题？问 AI</button>
+                    </div>
+                    <div id="guideContent" class="guide-content"></div>
+                </div>
+            </div>
+
+            <!-- AI 问答对话框 -->
+            <div id="chatModal" class="modal hidden">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>💬 AI 助手</h3>
+                        <button class="close-btn">&times;</button>
+                    </div>
+                    <div id="chatMessages" class="chat-messages"></div>
+                    <div class="chat-input-group">
+                        <input type="text" id="chatInput" placeholder="描述你遇到的问题...">
+                        <button id="sendChatBtn" class="btn btn-primary">发送</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 自动模式 - 部署进度 -->
+            <div id="autoDeploy" class="hidden">
+                <div class="card">
+                    <h2>🤖 自动部署中</h2>
+                    <div id="deployProgress" class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <div id="deployLogs" class="logs"></div>
+                    </div>
+                    <div id="deployResult" class="hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 项目列表 -->
+        <div id="projects" class="tab-content">
+            <div class="card">
+                <h2>📂 已管理项目</h2>
+                <div id="projectsList" class="projects-list">
+                    <p class="empty">暂无项目，请在首页添加</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 配置页面 -->
+        <div id="config" class="tab-content">
+            <div class="card">
+                <h2>🤖 AI 模型配置</h2>
+                <p class="hint">粘贴你的 API Key 配置信息，系统会自动识别</p>
+                
+                <div class="input-group">
+                    <textarea id="aiConfigText" rows="6" placeholder="例如：
+OPENAI_API_KEY=sk-xxxxxxxx
+或粘贴 API Key 文档中的内容" class="textarea"></textarea>
+                    <button id="parseConfigBtn" class="btn btn-secondary">🔍 自动识别配置</button>
+                </div>
+
+                <div id="parsedConfigs" class="hidden">
+                    <h3>识别到的配置</h3>
+                    <div id="configsList"></div>
+                </div>
+
+                <div class="config-section">
+                    <h3>当前 AI 状态</h3>
+                    <div id="aiStatus"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>⚙️ 系统配置</h2>
+                <div id="systemConfig"></div>
+            </div>
+        </div>
+
+        <!-- 日志 -->
+        <div id="logs" class="card hidden">
+            <h3>📋 系统日志</h3>
+            <div id="logsContent" class="logs-content"></div>
+        </div>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <p>处理中...</p>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
