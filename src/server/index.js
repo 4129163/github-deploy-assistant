@@ -31,6 +31,7 @@ const projectRoutes = require('../routes/project');
 const configRoutes = require('../routes/config');
 const processRoutes = require('../routes/process');
 const systemRoutes = require('../routes/system');
+const scanRoutes = require('../routes/scan');
 
 // 创建 Express 应用
 const app = express();
@@ -96,6 +97,7 @@ app.use('/api/project', projectRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/process', processRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/scan', scanRoutes);
 
 // 主页
 app.get('/', (req, res) => {

@@ -86,6 +86,7 @@ function initTabs() {
       if (btn.dataset.tab === 'projects') loadProjects();
       if (btn.dataset.tab === 'system') loadSystemStatus();
       if (btn.dataset.tab === 'ai') loadProviders();
+      if (btn.dataset.tab === 'scan') { /* 手动点扫描按钮 */ }
     });
   });
 }
@@ -573,6 +574,7 @@ function init() {
     loadProjects();
   });
   $('#projectSearch').addEventListener('input', loadProjects);
+  $('#scanBtn').addEventListener('click', runScan);
 
   // 初始环境检测
   api('/system/env').then(res => {
@@ -585,3 +587,87 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ============================================
+// 扫描本地项目
+// ============================================
+async function runScan() {
+  const btn = $('#scanBtn');
+  btn.disabled = true;
+  btn.textContent = '🔍 扫描中...';
+  const statsEl = $('#scanStats');
+  const listEl = $('#scanList');
+  listEl.innerHTML = '<p style="color:var(--text3)">扫描中，请稍候...</p>';
+  hide(statsEl);
+
+  try {
+    const res = await api('/scan');
+    const { total, inDatabase, notInDatabase, projects } = res.data;
+
+    // 统计卡片
+    statsEl.innerHTML = `
+      <div class="scan-stat"><div class="scan-stat-num">${total}</div><div class="scan-stat-label">发现项目</div></div>
+      <div class="scan-stat"><div class="scan-stat-num" style="color:var(--success)">${inDatabase}</div><div class="scan-stat-label">已由 GADA 管理</div></div>
+      <div class="scan-stat"><div class="scan-stat-num" style="color:var(--warning)">${notInDatabase}</div><div class="scan-stat-label">未管理（新发现）</div></div>
+    `;
+    show(statsEl);
+
+    if (projects.length === 0) {
+      listEl.innerHTML = '<p style="color:var(--text3)">workspace 目录下没有发现任何项目</p>';
+    } else {
+      const typeIcons = { nodejs: '🟢', python: '🐍', docker: '🐳', go: '🔵', rust: '🦀', java: '☕', static: '🌐' };
+      listEl.innerHTML = projects.map(p => `
+        <div class="scan-card ${p.inDatabase ? 'in-db' : 'not-in-db'}">
+          <div class="scan-card-header">
+            <div>
+              <div class="scan-name">${p.name}</div>
+              <div class="scan-path">${p.path}</div>
+            </div>
+            <span class="scan-badge ${p.inDatabase ? 'managed' : 'unmanaged'}">
+              ${p.inDatabase ? '✅ 已管理' : '⚠️ 未管理'}
+            </span>
+          </div>
+          <div class="scan-tags">
+            ${p.types.length ? p.types.map(t => `<span class="type-tag">${typeIcons[t] || '📦'} ${t}</span>`).join('') : '<span style="color:var(--text3);font-size:.82rem">未识别类型</span>'}
+            ${p.hasGit ? '<span class="type-tag">🔀 Git</span>' : ''}
+            ${p.hasNodeModules ? '<span class="type-tag">📦 node_modules</span>' : ''}
+            ${p.hasVenv ? '<span class="type-tag">🐍 venv</span>' : ''}
+          </div>
+          ${p.pkgDesc ? `<div class="scan-meta">${p.pkgDesc}</div>` : ''}
+          ${p.dbStatus ? `<div class="scan-meta">状态: ${p.dbStatus}</div>` : ''}
+          <div class="scan-card-footer">
+            ${!p.inDatabase ? `<button class="btn btn-primary" onclick="importProject('${p.name}', '${p.path}', ${JSON.stringify(p.types)})">📥 导入管理</button>` : ''}
+            ${p.inDatabase ? `<button class="btn btn-secondary" onclick="uninstallProject(${p.dbId}, '${p.name}')">🗑 卸载</button>` : ''}
+            ${!p.inDatabase ? `<button class="btn btn-danger" onclick="forceRemoveDir('${p.path}', '${p.name}')">🗑 直接删除</button>` : ''}
+          </div>
+        </div>`).join('');
+    }
+  } catch (err) {
+    listEl.innerHTML = `<p style="color:var(--danger)">扫描失败: ${err.message}</p>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 开始扫描';
+  }
+}
+
+async function importProject(name, dirPath, types) {
+  const repoUrl = prompt(`输入 "${name}" 的 GitHub 仓库地址（可选，直接按回车跳过）:`) || '';
+  try {
+    showLoading('导入中...');
+    const res = await api('/scan/import', { method: 'POST', body: JSON.stringify({ name, dirPath, types, repoUrl }) });
+    hideLoading();
+    alert('✅ ' + res.message);
+    runScan();
+  } catch (err) { hideLoading(); alert('导入失败: ' + err.message); }
+}
+
+async function forceRemoveDir(dirPath, name) {
+  if (!confirm(`直接删除目录 "${name}"？\n路径: ${dirPath}\n\n注意：此操作不可恢复，且不会停止进程！`)) return;
+  try {
+    showLoading('删除中...');
+    await api('/scan/remove', { method: 'DELETE', body: JSON.stringify({ dirPath }) });
+    hideLoading();
+    alert(`✅ "${name}" 已删除`);
+    runScan();
+  } catch (err) { hideLoading(); alert('删除失败: ' + err.message); }
+}
