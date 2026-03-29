@@ -59,7 +59,7 @@ router.get('/', async (req, res) => {
     // 返回当前环境配置（隐藏敏感信息）
     const config = {
       port: process.env.PORT || 3456,
-      workDir: process.env.WORK_DIR || './workspace',
+      workDir: require('../config').WORK_DIR,
       allowAutoExec: process.env.ALLOW_AUTO_EXEC !== 'false',
       logLevel: process.env.LOG_LEVEL || 'info',
       ai: {

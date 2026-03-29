@@ -5,12 +5,11 @@
 const express = require('express');
 const router = express.Router();
 const { analyzeRepository, cloneRepository, parseGitHubUrl } = require('../services/github');
-const { analyzeRepo } = require('../services/ai');
+const { analyzeRepo, getAvailableProviders } = require('../services/ai');
 const { ProjectDB } = require('../services/database');
 const { logger } = require('../utils/logger');
+const { WORK_DIR } = require('../config');
 const path = require('path');
-
-const WORK_DIR = process.env.WORK_DIR || path.join(__dirname, '../../workspace');
 
 /**
  * 解析仓库
@@ -37,20 +36,26 @@ router.post('/analyze', async (req, res) => {
     
     // 使用 AI 生成部署指南
     let aiAnalysis = null;
+    let aiError = null;
     try {
-      const availableProviders = require('../services/ai').getAvailableProviders();
+      const availableProviders = getAvailableProviders();
       if (availableProviders.length > 0) {
         aiAnalysis = await analyzeRepo(analysis, availableProviders[0].key);
+      } else {
+        aiError = 'No AI provider configured. Set OPENAI_API_KEY or DEEPSEEK_API_KEY in .env';
+        logger.warn(aiError);
       }
-    } catch (aiError) {
-      logger.warn(`AI analysis failed: ${aiError.message}`);
+    } catch (err) {
+      aiError = err.message;
+      logger.warn(`AI analysis failed: ${err.message}`);
     }
     
     res.json({
       success: true,
       data: {
         ...analysis,
-        aiAnalysis
+        aiAnalysis,
+        aiError
       }
     });
     

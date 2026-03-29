@@ -14,19 +14,19 @@ const fs = require('fs-extra');
 require('dotenv').config();
 
 // 导入服务
-const { initDatabase } = require('./services/database');
-const { logger } = require('./utils/logger');
+const { initDatabase } = require('../services/database');
+const { logger } = require('../utils/logger');
 
 // 导入路由
-const repoRoutes = require('./routes/repo');
-const deployRoutes = require('./routes/deploy');
-const aiRoutes = require('./routes/ai');
-const projectRoutes = require('./routes/project');
-const configRoutes = require('./routes/config');
+const repoRoutes = require('../routes/repo');
+const deployRoutes = require('../routes/deploy');
+const aiRoutes = require('../routes/ai');
+const projectRoutes = require('../routes/project');
+const configRoutes = require('../routes/config');
 
-// 配置
-const PORT = process.env.PORT || 3456;
-const WORK_DIR = process.env.WORK_DIR || path.join(__dirname, '../../workspace');
+// 统一配置
+const { PORT, WORK_DIR, LOGS_DIR, DB_PATH } = require('../config');
+const DB_DIR = path.dirname(DB_PATH);
 
 // 创建 Express 应用
 const app = express();
@@ -39,10 +39,10 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 // 静态文件
 app.use(express.static(path.join(__dirname, '../../public')));
 
-// 确保工作目录存在
+// 确保必要目录存在
 fs.ensureDirSync(WORK_DIR);
-fs.ensureDirSync(path.join(__dirname, '../../logs'));
-fs.ensureDirSync(path.join(__dirname, '../../database'));
+fs.ensureDirSync(LOGS_DIR);
+fs.ensureDirSync(DB_DIR);
 
 // API 路由
 app.use('/api/repo', repoRoutes);

@@ -8,8 +8,8 @@ const fs = require('fs-extra');
 const path = require('path');
 const { logger } = require('../utils/logger');
 
+const { WORK_DIR } = require('../config');
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const WORK_DIR = process.env.WORK_DIR || path.join(__dirname, '../../workspace');
 
 // Axios 配置
 const githubAxios = axios.create({
