@@ -26,10 +26,18 @@ function initDatabase() {
           status TEXT DEFAULT 'pending',
           project_type TEXT,
           config TEXT,
+          notes TEXT DEFAULT '',
+          tags TEXT DEFAULT '',
+          port INTEGER,
+          health_url TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
+      // 迁移：为旧数据库添加新字段（忽略已存在错误）
+      ['notes TEXT DEFAULT \"\"', 'tags TEXT DEFAULT \"\"', 'port INTEGER', 'health_url TEXT'].forEach(col => {
+        db.run(`ALTER TABLE projects ADD COLUMN ${col}`, () => {});
+      });
       
       // 创建部署日志表
       db.run(`
@@ -261,3 +269,26 @@ module.exports = {
   ConfigDB,
   ConversationDB
 };
+
+// 对话相关扩展
+Object.assign(ConversationDB, {
+  clearByProjectId: (projectId) => {
+    return new Promise((resolve, reject) => {
+      const d = getDb();
+      d.run('DELETE FROM conversations WHERE project_id = ?', [projectId], (err) => {
+        if (err) reject(err); else resolve();
+      });
+    });
+  },
+  // 只返回最近 N 条，避免历史过长
+  getRecentByProjectId: (projectId, limit = 20) => {
+    return new Promise((resolve, reject) => {
+      const d = getDb();
+      d.all(
+        'SELECT * FROM (SELECT * FROM conversations WHERE project_id = ? ORDER BY created_at DESC LIMIT ?) ORDER BY created_at ASC',
+        [projectId, limit],
+        (err, rows) => { if (err) reject(err); else resolve(rows || []); }
+      );
+    });
+  }
+});

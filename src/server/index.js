@@ -22,7 +22,8 @@ const DB_DIR = path.dirname(DB_PATH);
 const { initDatabase } = require('../services/database');
 const { logger } = require('../utils/logger');
 const { loadCustomProviders } = require('../services/ai');
-const { recoverProcessState } = require('../services/process-manager');
+const { recoverProcessState, getAllProcesses } = require('../services/process-manager');
+const { startHealthChecker } = require('../services/health-checker');
 
 // 导入路由
 const repoRoutes = require('../routes/repo');
@@ -126,6 +127,8 @@ app.use('/api/config', configRoutes);
 app.use('/api/process', processRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/scan', scanRoutes);
+const settingsRoutes = require('../routes/settings');
+app.use('/api/settings', settingsRoutes);
 
 // 主页
 app.get('/', (req, res) => {
@@ -155,6 +158,8 @@ async function startServer() {
     // 修复：服务重启后将残留 running 状态重置为 stopped
     await recoverProcessState();
     logger.info('Process state recovered');
+    startHealthChecker(getAllProcesses);
+    logger.info('Health checker started');
 
     server.listen(PORT, () => {
       logger.info(`============================================`);

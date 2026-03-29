@@ -299,16 +299,15 @@ async function answerQuestion(project, question, history = [], provider = null) 
       content: `你是一个友好的技术支持助手。用户正在部署一个 GitHub 项目，需要你帮助解决遇到的问题。\n\n项目信息：\n- 名称: ${project.name}\n- 仓库: ${project.repo_url}\n- 类型: ${project.project_type || '未知'}\n\n请提供清晰、具体的解决方案。如果不确定，请坦诚告知并给出可能的排查方向。`
     }
   ];
-  for (const h of history) {
+  // 限制最近 10 轮对话（20条），防止 token 超限
+  const recentHistory = history.slice(-20);
+  for (const h of recentHistory) {
     messages.push({ role: h.role, content: h.content });
   }
   messages.push({ role: 'user', content: question });
   return await chat(messages, provider);
 }
 
-/**
- * 智能识别粘贴文本中的 AI 配置信息
- */
 /**
  * 智能解析粘贴文本中的 AI 配置
  * 支持格式：

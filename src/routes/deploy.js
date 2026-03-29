@@ -170,3 +170,33 @@ router.get('/logs/:projectId', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * 重试上次失败的部署
+ * POST /api/deploy/retry/:projectId
+ */
+router.post('/retry/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const project = await ProjectDB.getById(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (!['failed', 'cloned', 'rolled_back'].includes(project.status)) {
+      return res.status(400).json({ error: `当前状态 "${project.status}" 不支持重试，只有失败/已克隆/已回滚的项目可以重试` });
+    }
+    logger.info(`Retrying deploy for project: ${project.name}`);
+    // 复用 auto deploy 逻辑
+    const result = await autoDeploy(project, (progress) => {
+      if (global.broadcastLog) {
+        global.broadcastLog(projectId, progress.message || JSON.stringify(progress));
+      }
+    });
+    if (global.broadcast) {
+      global.broadcast('deploy_done', { projectId, success: result.success });
+    }
+    await ProjectDB.update(projectId, { status: result.success ? 'deployed' : 'failed' });
+    res.json({ success: result.success, data: result, message: result.success ? '重试部署成功' : '重试部署失败，请查看日志' });
+  } catch (error) {
+    logger.error('Retry deploy error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});

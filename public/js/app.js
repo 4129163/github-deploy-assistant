@@ -133,6 +133,12 @@ function initWebSocket() {
         appendLog(`⏹ 进程已停止 (exit code: ${msg.data.code})`, 'info');
       } else if (msg.type === 'process_error') {
         appendLog(`❌ 进程错误: ${msg.data.error}`, 'error');
+      } else if (msg.type === 'health_alert') {
+        // 健康检查失败告警
+        const note = `⚠️ 项目 ${msg.data.projectId} 健康检查失败 (${msg.data.error})`;
+        console.warn(note);
+        // 如果当前在项目列表页，刷新状态
+        if ($('#projects')?.classList.contains('active')) loadProjects();
       }
     } catch (_) {}
   };
@@ -349,21 +355,28 @@ async function loadProjects() {
       return;
     }
     container.innerHTML = list.map(p => {
-      const procRes = null; // 静态渲染，进程状态从系统页获取
+      const isFailed = ['failed'].includes(p.status);
+      const tags = (p.tags || '').split(',').filter(Boolean);
       return `
       <div class="project-card">
         <div class="project-card-header">
-          <div>
+          <div style="flex:1;min-width:0">
             <div class="project-name">${p.name}</div>
             <div class="project-url">${p.repo_url || ''}</div>
+            ${tags.length ? `<div class="project-tags">${tags.map(t => `<span class="project-tag">${t}</span>`).join('')}</div>` : ''}
+            ${p.notes ? `<div class="project-notes">${p.notes}</div>` : ''}
           </div>
-          <span class="project-status status-${p.status}">${statusLabel(p.status)}</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.35rem;flex-shrink:0">
+            <span class="project-status status-${p.status}">${statusLabel(p.status)}</span>
+            <button class="btn btn-ghost" style="font-size:.75rem;padding:.1rem .4rem" onclick="editProjectMeta(${p.id},'${p.name.replace(/'/g,"\\'")}')">✏️ 备注</button>
+          </div>
         </div>
         <div class="project-card-footer">
           <button class="btn btn-primary" onclick="startProject(${p.id})">▶ 启动</button>
           <button class="btn btn-secondary" onclick="stopProject(${p.id})">⏹ 停止</button>
+          ${isFailed ? `<button class="btn btn-secondary" onclick="retryDeploy(${p.id})">🔄 重试</button>` : ''}
           <button class="btn btn-ghost" onclick="openChat(${p.id})">💬 问AI</button>
-          <button class="btn btn-secondary" onclick="uninstallProject(${p.id}, '${p.name}')">🗑 卸载</button>
+          <button class="btn btn-secondary" onclick="uninstallProject(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🗑 卸载</button>
         </div>
       </div>`;
     }).join('');
@@ -792,3 +805,59 @@ function initQuickConfig() {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') btn.click();
   });
 }
+
+// ============================================
+// Fix 10: 重试部署
+// ============================================
+async function retryDeploy(id) {
+  if (!confirm('重新尝试部署这个项目？')) return;
+  state.deployLogLines = [];
+  state.progressValue = 10;
+  const el = $('#deployLog');
+  if (el) el.innerHTML = '';
+  setProgress(10, '重试部署中...');
+  showStep('step-deploying');
+  try {
+    const res = await api(`/deploy/retry/${id}`, { method: 'POST' });
+    if (res.success) {
+      setProgress(100, '重试成功！');
+      setTimeout(() => showDone({ id }, '项目重新部署成功！'), 800);
+    } else {
+      setProgress(state.progressValue, '重试失败，请查看日志');
+    }
+  } catch (err) {
+    setProgress(state.progressValue, '重试出错: ' + err.message);
+  }
+}
+
+// ============================================
+// Fix 11: 项目备注/标签编辑
+// ============================================
+async function editProjectMeta(id, name) {
+  const notes = prompt(`为「${name}」添加备注（可留空）:`) ?? null;
+  if (notes === null) return; // 取消
+  const tags = prompt('添加标签（多个用逗号分隔，如: AI,Python,好用）:') ?? '';
+  try {
+    await api(`/project/${id}`, { method: 'PUT', body: JSON.stringify({ notes, tags }) });
+    loadProjects();
+  } catch (err) { alert('保存失败: ' + err.message); }
+}
+
+// ============================================
+// Fix 12: 前端健康状态展示（系统页轮询）
+// ============================================
+async function loadHealthStatus() {
+  try {
+    const res = await api('/system/health');
+    const statuses = res.data;
+    // 给系统页的进程列表更新健康状态
+    Object.entries(statuses).forEach(([pid, s]) => {
+      const el = document.querySelector(`[data-project-id="${pid}"] .health-status`);
+      if (!el) return;
+      el.textContent = s.status === 'healthy' ? `✅ ${s.latency}ms` : s.status === 'unhealthy' ? '❌ 不健康' : '⏳ 检查中';
+    });
+  } catch (_) {}
+}
+
+// WebSocket 接收健康告警
+// (已在 initWebSocket onmessage 中处理 health_alert)

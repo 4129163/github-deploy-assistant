@@ -48,8 +48,8 @@ async function startProject(project, onLog) {
   const { id, name, local_path, project_type } = project;
   const types = project_type ? project_type.split(',') : [];
 
-  if (runningProcesses[id]?.status === 'running') {
-    throw new Error(`项目 "${name}" 已在运行中 (PID: ${runningProcesses[id].pid})`);
+  if (runningProcesses[String(id)]?.status === 'running') {
+    throw new Error(`项目 "${name}" 已在运行中 (PID: ${runningProcesses[String(id)].pid})`);
   }
 
   // 分配端口
@@ -105,7 +105,7 @@ async function startProject(project, onLog) {
     throw new Error(`不支持自动启动此项目类型: ${types.join(',') || '未知'}。请手动进入项目目录启动。`);
   }
 
-  runningProcesses[id] = {
+  runningProcesses[String(id)] = {
     pid: child.pid,
     process: child,
     port,
@@ -117,13 +117,13 @@ async function startProject(project, onLog) {
   child.stderr?.on('data', (d) => log(`[stderr] ${d.toString().trim()}`));
   child.on('close', (code) => {
     log(`进程退出，exit code: ${code}`);
-    if (runningProcesses[id]) runningProcesses[id].status = 'stopped';
+    if (runningProcesses[String(id)]) runningProcesses[String(id)].status = 'stopped';
     // 通知前端进程已停止
     if (global.broadcast) global.broadcast('process_stopped', { projectId: String(id), code });
   });
   child.on('error', (err) => {
     log(`进程错误: ${err.message}`);
-    if (runningProcesses[id]) runningProcesses[id].status = 'error';
+    if (runningProcesses[String(id)]) runningProcesses[String(id)].status = 'error';
     if (global.broadcast) global.broadcast('process_error', { projectId: String(id), error: err.message });
   });
 

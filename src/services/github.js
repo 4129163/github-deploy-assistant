@@ -338,19 +338,21 @@ async function analyzeRepository(url) {
 async function cloneRepository(url, targetPath) {
   try {
     await fs.ensureDir(targetPath);
-    
-    const git = simpleGit();
-    
-    logger.info(`Cloning repository to: ${targetPath}`);
-    
+
+    const timeoutMs = parseInt(process.env.CLONE_TIMEOUT_MS, 10) || 120000; // 默认 2 分钟
+    const git = simpleGit({ timeout: { block: timeoutMs } });
+
+    logger.info(`Cloning repository to: ${targetPath} (timeout: ${timeoutMs}ms)`);
+
     await git.clone(url, targetPath, ['--depth', '1']);
-    
+
     logger.info('Clone complete');
-    
     return targetPath;
   } catch (error) {
+    // 克隆失败时清理残留目录
+    try { await fs.remove(targetPath); } catch (_) {}
     logger.error(`Clone failed: ${error.message}`);
-    throw error;
+    throw new Error(`克隆仓库失败: ${error.message}。请检查网络或仓库地址是否正确。`);
   }
 }
 

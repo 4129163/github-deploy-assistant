@@ -50,3 +50,16 @@ router.get('/env', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * 获取所有项目健康状态
+ * GET /api/system/health
+ */
+router.get('/health', (req, res) => {
+  try {
+    const { getAllHealthStatus } = require('../services/health-checker');
+    res.json({ success: true, data: getAllHealthStatus() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});

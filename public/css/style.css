@@ -313,3 +313,8 @@ label .input { color: var(--text); }
 .provider-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .dot-ok { background: var(--success); }
 .dot-no { background: var(--text3); }
+
+/* 项目备注/标签 */
+.project-tags { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .35rem; }
+.project-tag { font-size: .72rem; padding: .1rem .45rem; border-radius: 20px; background: var(--primary-light, #eff6ff); color: var(--primary); font-weight: 500; }
+.project-notes { font-size: .78rem; color: var(--text3); margin-top: .25rem; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }

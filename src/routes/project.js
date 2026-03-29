@@ -222,16 +222,17 @@ async function buildUninstallPreview(project) {
 }
 
 async function getDirSize(dirPath) {
-  let size = 0;
-  try {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = path.join(dirPath, entry.name);
-      if (entry.isDirectory()) size += await getDirSize(full);
-      else { const stat = await fs.stat(full); size += stat.size; }
-    }
-  } catch (_) {}
-  return size;
+  // 用 du -sb 快速估算，避免递归大量小文件（node_modules 等）
+  const { exec } = require('child_process');
+  return new Promise((resolve) => {
+    exec(`du -sb "${dirPath}" 2>/dev/null || du -sk "${dirPath}" 2>/dev/null`, (err, stdout) => {
+      if (err || !stdout) return resolve(0);
+      const parts = stdout.trim().split(/\s+/);
+      const val = parseInt(parts[0], 10);
+      // du -sk 返回 KB，du -sb 返回 bytes；简单判断：若值很小可能是KB
+      resolve(isNaN(val) ? 0 : val);
+    });
+  });
 }
 
 function formatSize(bytes) {

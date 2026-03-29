@@ -79,7 +79,7 @@ router.post('/ask/:projectId', async (req, res) => {
     }
     
     // 获取历史对话
-    const history = await ConversationDB.getByProjectId(projectId);
+    const history = await (ConversationDB.getRecentByProjectId || ConversationDB.getByProjectId)(projectId, 20);
     const formattedHistory = history.map(h => ({
       role: h.role,
       content: h.content
@@ -130,6 +130,21 @@ router.get('/conversations/:projectId', async (req, res) => {
   } catch (error) {
     logger.error('Get conversations error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 清除项目对话历史
+ * DELETE /api/ai/conversations/:projectId
+ */
+router.delete('/conversations/:projectId', async (req, res) => {
+  try {
+    if (ConversationDB.clearByProjectId) {
+      await ConversationDB.clearByProjectId(req.params.projectId);
+    }
+    res.json({ success: true, message: '对话历史已清除' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -279,8 +294,8 @@ router.post('/quick-config', async (req, res) => {
           defaultModel: model,
           builtin: false
         };
-        // 内置提供商也存到自定义表（优先级更高，覆盖内置默认值）
-        await addCustomProvider(key + '_override', { ...providerCfg, name: cfg.name + '（已配置）' });
+        // 直接用 provider key 存储，覆盖同名旧配置
+        await addCustomProvider(key, providerCfg);
 
         // 同时更新 DEFAULT_AI_PROVIDER
         process.env.DEFAULT_AI_PROVIDER = key;
