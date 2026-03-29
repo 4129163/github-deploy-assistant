@@ -16,6 +16,7 @@ require('dotenv').config();
 // 导入服务
 const { initDatabase } = require('../services/database');
 const { logger } = require('../utils/logger');
+const { loadCustomProviders } = require('../services/ai');
 
 // 导入路由
 const repoRoutes = require('../routes/repo');
@@ -72,6 +73,9 @@ async function startServer() {
   try {
     await initDatabase();
     logger.info('Database initialized');
+    
+    // 加载自定义 AI 提供商
+    await loadCustomProviders();
     
     app.listen(PORT, () => {
       logger.info(`============================================`);

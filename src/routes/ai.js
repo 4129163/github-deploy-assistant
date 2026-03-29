@@ -6,7 +6,10 @@ const express = require('express');
 const router = express.Router();
 const { 
   getAIStatus, 
-  getAvailableProviders, 
+  getAvailableProviders,
+  getAllProviders,
+  addCustomProvider,
+  removeCustomProvider,
   chat, 
   answerQuestion,
   parseAIConfig 
@@ -151,6 +154,94 @@ router.post('/parse-config', (req, res) => {
     
   } catch (error) {
     logger.error('Parse config error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 获取所有提供商（含自定义）
+ * GET /api/ai/providers
+ */
+router.get('/providers', (req, res) => {
+  const all = getAllProviders();
+  const result = Object.entries(all).map(([key, config]) => ({
+    key,
+    name: config.name,
+    baseURL: config.baseURL,
+    configured: !!config.apiKey,
+    models: config.models,
+    defaultModel: config.defaultModel,
+    builtin: config.builtin !== false
+  }));
+  res.json({ success: true, data: result });
+});
+
+/**
+ * 添加或更新自定义提供商
+ * POST /api/ai/providers
+ * body: { key, name, baseURL, apiKey, models, defaultModel }
+ */
+router.post('/providers', async (req, res) => {
+  try {
+    const { key, name, baseURL, apiKey, models, defaultModel } = req.body;
+    if (!key) return res.status(400).json({ error: '缺少 key 字段' });
+    const provider = await addCustomProvider(key, { name, baseURL, apiKey, models, defaultModel });
+    res.json({ success: true, data: provider, message: `提供商 "${key}" 已保存` });
+  } catch (error) {
+    logger.error('Add provider error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * 删除自定义提供商
+ * DELETE /api/ai/providers/:key
+ */
+router.delete('/providers/:key', async (req, res) => {
+  try {
+    await removeCustomProvider(req.params.key);
+    res.json({ success: true, message: `提供商 "${req.params.key}" 已删除` });
+  } catch (error) {
+    logger.error('Remove provider error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * 测试提供商连通性
+ * POST /api/ai/providers/test
+ * body: { key } 或 { baseURL, apiKey, defaultModel }
+ */
+router.post('/providers/test', async (req, res) => {
+  try {
+    const { key, baseURL, apiKey, defaultModel } = req.body;
+    let providerKey = key;
+
+    // 如果传了临时配置，先临时注册
+    if (!key && baseURL && apiKey && defaultModel) {
+      providerKey = '__test__';
+      await addCustomProvider(providerKey, {
+        name: 'Test',
+        baseURL,
+        apiKey,
+        defaultModel,
+        models: [defaultModel]
+      });
+    }
+
+    const response = await chat(
+      [{ role: 'user', content: '你好，请回复「连接正常」四个字。' }],
+      providerKey
+    );
+
+    // 清理临时提供商
+    if (providerKey === '__test__') {
+      await removeCustomProvider('__test__').catch(() => {});
+    }
+
+    res.json({ success: true, data: { response }, message: '连接测试成功' });
+  } catch (error) {
+    logger.error('Test provider error:', error);
     res.status(500).json({ error: error.message });
   }
 });
