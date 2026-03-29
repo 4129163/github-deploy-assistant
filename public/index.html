@@ -1,159 +1,223 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Deploy Assistant (GADA) - 项目部署助手</title>
-    <link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GADA - GitHub 项目部署助手</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- 头部 -->
-        <header class="header">
-            <h1>🚀 GitHub Deploy Assistant</h1>
-            <p class="subtitle">智能项目部署助手 - 让部署变得简单</p>
-        </header>
+  <div class="app">
+    <!-- 顶栏 -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="logo">🚀</span>
+        <span class="logo-text">GADA <small>GitHub 部署助手</small></span>
+      </div>
+      <div class="topbar-right">
+        <span id="envBadge" class="badge">检测环境中...</span>
+        <button id="themeToggle" class="icon-btn" title="切换主题">🌙</button>
+      </div>
+    </header>
 
-        <!-- 导航 -->
-        <nav class="nav">
-            <button class="nav-btn active" data-tab="home">🏠 首页</button>
-            <button class="nav-btn" data-tab="projects">📂 项目列表</button>
-            <button class="nav-btn" data-tab="config">⚙️ 配置</button>
-        </nav>
+    <!-- 导航 -->
+    <nav class="sidebar">
+      <button class="nav-item active" data-tab="home">🏠 <span>部署项目</span></button>
+      <button class="nav-item" data-tab="projects">📂 <span>项目管理</span></button>
+      <button class="nav-item" data-tab="system">🖥️ <span>系统状态</span></button>
+      <button class="nav-item" data-tab="ai">🤖 <span>AI 设置</span></button>
+    </nav>
 
-        <!-- 首页 - 仓库解析 -->
-        <div id="home" class="tab-content active">
-            <div class="card">
-                <h2>🔗 输入 GitHub 仓库地址</h2>
-                <div class="input-group">
-                    <input type="text" id="repoUrl" placeholder="https://github.com/username/repo" class="input">
-                    <button id="analyzeBtn" class="btn btn-primary">🔍 开始分析</button>
-                </div>
-                <p class="hint">支持格式: https://github.com/username/repo</p>
-            </div>
+    <!-- 主内容区 -->
+    <main class="content">
 
-            <!-- 分析结果 -->
-            <div id="analysisResult" class="hidden">
-                <div class="card">
-                    <h2>📊 仓库分析结果</h2>
-                    <div id="repoInfo"></div>
-                    
-                    <div id="deploymentOptions" class="hidden">
-                        <h3>选择部署模式</h3>
-                        <div class="mode-buttons">
-                            <button id="manualModeBtn" class="btn btn-secondary">
-                                📖 手动模式
-                                <small>查看详细安装教程，按步骤自行安装</small>
-                            </button>
-                            <button id="autoModeBtn" class="btn btn-primary">
-                                🤖 自动模式
-                                <small>一键自动安装部署（推荐）</small>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- AI 分析结果 -->
-                <div id="aiAnalysis" class="card hidden">
-                    <h2>🤖 AI 智能分析</h2>
-                    <div class="ai-content"></div>
-                </div>
-            </div>
-
-            <!-- 手动模式 - 部署指南 -->
-            <div id="manualGuide" class="hidden">
-                <div class="card">
-                    <div class="guide-header">
-                        <h2>📖 手动部署指南</h2>
-                        <button id="askAIBtn" class="btn btn-small">💬 有问题？问 AI</button>
-                    </div>
-                    <div id="guideContent" class="guide-content"></div>
-                </div>
-            </div>
-
-            <!-- AI 问答对话框 -->
-            <div id="chatModal" class="modal hidden">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>💬 AI 助手</h3>
-                        <button class="close-btn">&times;</button>
-                    </div>
-                    <div id="chatMessages" class="chat-messages"></div>
-                    <div class="chat-input-group">
-                        <input type="text" id="chatInput" placeholder="描述你遇到的问题...">
-                        <button id="sendChatBtn" class="btn btn-primary">发送</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 自动模式 - 部署进度 -->
-            <div id="autoDeploy" class="hidden">
-                <div class="card">
-                    <h2>🤖 自动部署中</h2>
-                    <div id="deployProgress" class="progress-container">
-                        <div class="progress-bar">
-                            <div class="progress-fill" style="width: 0%"></div>
-                        </div>
-                        <div id="deployLogs" class="logs"></div>
-                    </div>
-                    <div id="deployResult" class="hidden"></div>
-                </div>
-            </div>
+      <!-- ========== 首页：部署向导 ========== -->
+      <div id="home" class="tab active">
+        <!-- 步骤1：输入URL -->
+        <div id="step-input" class="wizard-step">
+          <div class="hero">
+            <h1>把 GitHub 项目装到你的电脑</h1>
+            <p class="hero-sub">粘贴仓库链接，剩下的交给我 👇</p>
+          </div>
+          <div class="url-box">
+            <input id="repoUrl" type="text" placeholder="https://github.com/用户名/项目名" class="url-input" autofocus>
+            <button id="analyzeBtn" class="btn btn-primary btn-lg">🔍 开始分析</button>
+          </div>
+          <p class="url-hint">支持任意公开 GitHub 仓库链接</p>
         </div>
 
-        <!-- 项目列表 -->
-        <div id="projects" class="tab-content">
-            <div class="card">
-                <h2>📂 已管理项目</h2>
-                <div id="projectsList" class="projects-list">
-                    <p class="empty">暂无项目，请在首页添加</p>
-                </div>
-            </div>
+        <!-- 步骤2：分析中 -->
+        <div id="step-analyzing" class="wizard-step hidden">
+          <div class="analyzing-anim">
+            <div class="spinner-large"></div>
+            <h2 id="analyzingText">正在分析仓库...</h2>
+            <p id="analyzingSubtext">读取项目结构和配置文件</p>
+          </div>
         </div>
 
-        <!-- 配置页面 -->
-        <div id="config" class="tab-content">
-            <div class="card">
-                <h2>🤖 AI 模型配置</h2>
-                <p class="hint">粘贴你的 API Key 配置信息，系统会自动识别</p>
-                
-                <div class="input-group">
-                    <textarea id="aiConfigText" rows="6" placeholder="例如：
-OPENAI_API_KEY=sk-xxxxxxxx
-或粘贴 API Key 文档中的内容" class="textarea"></textarea>
-                    <button id="parseConfigBtn" class="btn btn-secondary">🔍 自动识别配置</button>
-                </div>
+        <!-- 步骤3：分析结果 -->
+        <div id="step-result" class="wizard-step hidden">
+          <div class="result-header">
+            <button id="backBtn" class="btn btn-ghost">← 重新输入</button>
+            <h2 id="repoTitle">项目名称</h2>
+          </div>
 
-                <div id="parsedConfigs" class="hidden">
-                    <h3>识别到的配置</h3>
-                    <div id="configsList"></div>
-                </div>
+          <div class="result-grid">
+            <!-- 左侧：项目信息 -->
+            <div class="result-info">
+              <div class="info-card">
+                <div id="repoMeta"></div>
+              </div>
 
-                <div class="config-section">
-                    <h3>当前 AI 状态</h3>
-                    <div id="aiStatus"></div>
-                </div>
+              <!-- AI 分析 -->
+              <div id="aiAnalysisCard" class="info-card hidden">
+                <h3>🤖 AI 分析</h3>
+                <div id="aiAnalysisContent"></div>
+              </div>
+
+              <!-- 环境要求 -->
+              <div class="info-card">
+                <h3>📋 检测到的项目类型</h3>
+                <div id="projectTypes"></div>
+              </div>
+
+              <!-- 部署按钮 -->
+              <div class="deploy-actions">
+                <button id="autoDeployBtn" class="btn btn-primary btn-block">
+                  🤖 自动安装（推荐）
+                  <small>全自动，不需要任何操作</small>
+                </button>
+                <button id="manualDeployBtn" class="btn btn-secondary btn-block">
+                  📖 查看手动教程
+                  <small>傻瓜式步骤，自己照做</small>
+                </button>
+              </div>
             </div>
 
-            <div class="card">
-                <h2>⚙️ 系统配置</h2>
-                <div id="systemConfig"></div>
+            <!-- 右侧：README -->
+            <div class="result-readme">
+              <div class="readme-header" id="readmeToggle">
+                <h3>📄 项目说明 (README)</h3>
+                <span class="toggle-icon">▼</span>
+              </div>
+              <div id="readmeContent" class="readme-body markdown-body"></div>
             </div>
+          </div>
         </div>
 
-        <!-- 日志 -->
-        <div id="logs" class="card hidden">
-            <h3>📋 系统日志</h3>
-            <div id="logsContent" class="logs-content"></div>
+        <!-- 步骤4：部署进行中 -->
+        <div id="step-deploying" class="wizard-step hidden">
+          <div class="deploy-progress">
+            <h2>🚀 正在自动安装...</h2>
+            <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+            <p id="progressText">准备中...</p>
+          </div>
+          <div class="log-panel">
+            <div class="log-header">📋 实时日志</div>
+            <div id="deployLog" class="log-body"></div>
+          </div>
         </div>
+
+        <!-- 步骤5：手动教程 -->
+        <div id="step-manual" class="wizard-step hidden">
+          <div class="manual-header">
+            <button id="backFromManual" class="btn btn-ghost">← 返回</button>
+            <h2>📖 手动安装教程</h2>
+          </div>
+          <div id="manualContent" class="markdown-body"></div>
+          <div class="manual-footer">
+            <p>遇到问题？用 AI 帮你解答 👇</p>
+            <button id="openChatBtn" class="btn btn-primary">💬 问 AI 助手</button>
+          </div>
+        </div>
+
+        <!-- 步骤6：安装完成 -->
+        <div id="step-done" class="wizard-step hidden">
+          <div class="done-card">
+            <div class="done-icon">✅</div>
+            <h2>安装完成！</h2>
+            <p id="doneMessage"></p>
+            <div class="done-actions">
+              <button id="startProjectBtn" class="btn btn-primary">▶ 启动项目</button>
+              <button id="viewProjectBtn" class="btn btn-secondary">📂 查看项目</button>
+              <button id="deployAgainBtn" class="btn btn-ghost">🔄 部署另一个</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 项目管理 ========== -->
+      <div id="projects" class="tab hidden">
+        <div class="tab-header">
+          <h2>📂 已安装的项目</h2>
+          <div class="tab-tools">
+            <input id="projectSearch" type="text" placeholder="搜索项目..." class="search-input">
+          </div>
+        </div>
+        <div id="projectList" class="project-grid"></div>
+      </div>
+
+      <!-- ========== 系统状态 ========== -->
+      <div id="system" class="tab hidden">
+        <div class="tab-header"><h2>🖥️ 系统环境</h2></div>
+        <div id="envChecks" class="env-grid"></div>
+        <div class="tab-header" style="margin-top:2rem"><h2>⚡ 运行中的项目</h2></div>
+        <div id="runningProcesses" class="process-list"></div>
+      </div>
+
+      <!-- ========== AI 设置 ========== -->
+      <div id="ai" class="tab hidden">
+        <div class="tab-header">
+          <h2>🤖 AI 提供商设置</h2>
+          <button id="addProviderBtn" class="btn btn-primary">+ 添加自定义</button>
+        </div>
+        <p class="hint">配置 AI 后，部署助手将能分析项目并回答你的问题。粘贴你的 API Key 即可。</p>
+        <div id="providerList" class="provider-grid"></div>
+
+        <!-- 添加自定义提供商表单 -->
+        <div id="customProviderForm" class="modal hidden">
+          <div class="modal-box">
+            <h3>添加自定义 AI 提供商</h3>
+            <label>标识符 (英文, 如 my-llm)<input id="cpKey" type="text" placeholder="my-llm" class="input"></label>
+            <label>名称<input id="cpName" type="text" placeholder="我的大模型" class="input"></label>
+            <label>API Base URL<input id="cpUrl" type="text" placeholder="https://api.example.com/v1" class="input"></label>
+            <label>API Key<input id="cpKey2" type="password" placeholder="sk-xxx" class="input"></label>
+            <label>默认模型名<input id="cpModel" type="text" placeholder="gpt-4o" class="input"></label>
+            <div class="modal-actions">
+              <button id="testProviderBtn" class="btn btn-secondary">🔗 测试连接</button>
+              <button id="saveProviderBtn" class="btn btn-primary">保存</button>
+              <button id="cancelProviderBtn" class="btn btn-ghost">取消</button>
+            </div>
+            <div id="testResult" class="test-result hidden"></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- AI 对话弹窗 -->
+  <div id="chatModal" class="modal hidden">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3>💬 AI 助手</h3>
+        <button id="closeChatBtn" class="icon-btn">✕</button>
+      </div>
+      <div id="chatMessages" class="chat-messages"></div>
+      <div class="chat-input-row">
+        <input id="chatInput" type="text" placeholder="描述你遇到的问题..." class="input">
+        <button id="sendChatBtn" class="btn btn-primary">发送</button>
+      </div>
     </div>
+  </div>
 
-    <!-- 加载遮罩 -->
-    <div id="loading" class="loading hidden">
-        <div class="spinner"></div>
-        <p>处理中...</p>
-    </div>
+  <!-- 全局 Loading -->
+  <div id="globalLoading" class="global-loading hidden">
+    <div class="spinner"></div>
+    <span id="loadingText">处理中...</span>
+  </div>
 
-    <script src="js/app.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
