@@ -97,14 +97,48 @@ npm start
 
 ### Windows 用户
 
-> 需要先安装 [Node.js 18+](https://nodejs.org) 和 [Git](https://git-scm.com)
+> ⚠️ 运行前需要先安装两个工具，**缺一不可**：
+>
+> | 工具 | 用途 | 下载地址 |
+> |------|------|----------|
+> | **Node.js 18+** | 运行 GADA 本体 | [nodejs.org](https://nodejs.org) → 点「LTS」版本下载安装 |
+> | **Git** | 克隆 GitHub 仓库 | [git-scm.com](https://git-scm.com) → 点「Download for Windows」|
+>
+> 安装时一路点「Next」即可，不需要改任何选项。安装完后**重启一次命令行窗口**再继续。
+
+**验证安装是否成功（打开命令提示符，分别运行）：**
 
 ```powershell
+node --version    # 应该显示 v18.x.x 或更高
+git --version     # 应该显示 git version 2.x.x
+```
+
+如果两条都有输出，说明环境准备好了。
+
+**然后按顺序逐行运行（每行回车确认，等上一步完成再运行下一行）：**
+
+```powershell
+# 第1步：克隆项目（需要网络，约几十秒）
 git clone https://github.com/4129163/github-deploy-assistant.git
+
+# 第2步：进入目录
 cd github-deploy-assistant
+
+# 第3步：安装依赖（需要网络，可能需要1-5分钟，耐心等待）
 npm install
+
+# 第4步：启动服务
 npm start
 ```
+
+看到 `Server: http://localhost:3456` 的提示后，打开浏览器访问 **http://localhost:3456** 即可使用。
+
+> 💡 **以后每次使用**：只需打开命令提示符，`cd` 到安装目录，运行 `npm start` 即可。前三步只需做一次。
+
+> ❌ **常见错误处理：**
+> - `'git' 不是内部或外部命令` → Git 没装好，重新安装后重启命令行
+> - `'npm' 不是内部或外部命令` → Node.js 没装好，重新安装后重启命令行  
+> - `npm install` 卡很久或报错 → 运行 `npm config set registry https://registry.npmmirror.com` 后重试
 
 ---
 
