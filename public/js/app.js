@@ -1,3 +1,26 @@
+// ===== Toast 通知系统 =====
+function toast(msg, type = 'info', duration = 3000) {
+  const tc = document.getElementById('toastContainer');
+  if (!tc) return;
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  tc.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, duration);
+}
+
+function copyLog() {
+  const log = document.getElementById('deployLog');
+  if (!log) return;
+  navigator.clipboard.writeText(log.innerText).then(() => toast('日志已复制', 'ok')).catch(() => toast('复制失败', 'err'));
+}
+
+function copyDoneUrl() {
+  const link = document.getElementById('doneUrlLink');
+  if (!link) return;
+  navigator.clipboard.writeText(link.href).then(() => toast('地址已复制', 'ok')).catch(() => toast('复制失败', 'err'));
+}
+
 /**
  * GADA - GitHub Deploy Assistant
  * 主前端逻辑
@@ -204,7 +227,7 @@ async function stopProcess(projectId) {
   try {
     await api(`/process/${projectId}/stop`, { method: 'POST' });
     loadSystemStatus();
-  } catch (err) { alert('停止失败: ' + err.message); }
+  } catch (err) { toast('停止失败: ' + err.message, 'err'); }
 }
 
 // ============================================
@@ -212,25 +235,50 @@ async function stopProcess(projectId) {
 // ============================================
 async function analyzeRepo() {
   const url = $('#repoUrl').value.trim();
-  if (!url) { alert('请输入 GitHub 仓库地址'); return; }
+  if (!url) { toast('请输入 GitHub 仓库地址', 'err'); return; }
 
   showStep('step-analyzing');
+  // 分析步骤动画
+  const steps = ['astep-fetch', 'astep-detect', 'astep-ai'];
+  steps.forEach(id => { const el = document.getElementById(id); if (el) { el.classList.remove('active','done'); } });
+  function setStep(idx) {
+    steps.forEach((id, i) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('active','done');
+      if (i < idx) el.classList.add('done');
+      else if (i === idx) el.classList.add('active');
+    });
+  }
+  setStep(0);
   $('#analyzingText').textContent = '正在读取仓库信息...';
   $('#analyzingSubtext').textContent = '连接 GitHub...';
 
   try {
-    $('#analyzingSubtext').textContent = '分析项目结构和配置文件...';
+    setStep(1);
+    $('#analyzingText').textContent = '分析项目结构...';
+    $('#analyzingSubtext').textContent = '检测语言、框架、依赖';
     const res = await api('/repo/analyze', { method: 'POST', body: JSON.stringify({ url }) });
+    setStep(2);
+    $('#analyzingText').textContent = 'AI 智能分析中...';
+    $('#analyzingSubtext').textContent = '生成部署方案';
     state.currentAnalysis = res.data;
     showAnalysisResult(res.data);
   } catch (err) {
     showStep('step-input');
-    alert('分析失败: ' + err.message);
+    toast('分析失败: ' + err.message, 'err');
   }
 }
 
 function showAnalysisResult(data) {
   $('#repoTitle').textContent = data.name || data.fullName || '未知项目';
+  // 更新类型 badge
+  const typeBadge = $('#repoTypeBadge');
+  if (typeBadge) {
+    const types = data.projectTypes || [];
+    typeBadge.textContent = types.length ? types.join(' · ') : '';
+    typeBadge.style.display = types.length ? '' : 'none';
+  }
 
   // 基本信息
   $('#repoMeta').innerHTML = `
@@ -304,7 +352,7 @@ async function startAutoDeploy() {
     }
   } catch (err) {
     hideLoading();
-    alert('部署失败: ' + err.message);
+    toast('部署失败: ' + err.message, 'err');
     showStep('step-result');
   }
 }
@@ -332,12 +380,23 @@ async function startManualMode() {
     showStep('step-manual');
   } catch (err) {
     hideLoading();
-    alert('获取教程失败: ' + err.message);
+    toast('获取教程失败: ' + err.message, 'err');
   }
 }
 
 function showDone(project, msg) {
   $('#doneMessage').textContent = msg + (project?.name ? ` (${project.name})` : '');
+  // 显示访问地址
+  const urlSection = $('#doneAccessUrl');
+  const urlLink = $('#doneUrlLink');
+  if (urlSection && urlLink && project?.port) {
+    const url = `http://localhost:${project.port}`;
+    urlLink.href = url;
+    urlLink.textContent = url;
+    urlSection.classList.remove('hidden');
+  } else if (urlSection) {
+    urlSection.classList.add('hidden');
+  }
   showStep('step-done');
 }
 
@@ -348,7 +407,12 @@ async function loadProjects() {
   try {
     const res = await api('/project');
     const q = ($('#projectSearch')?.value || '').toLowerCase();
-    const list = res.data.filter(p => !q || p.name.toLowerCase().includes(q) || (p.repo_url || '').toLowerCase().includes(q));
+    const statusFilter = $('#projectFilter')?.value || '';
+    const list = res.data.filter(p => {
+      const matchQ = !q || p.name.toLowerCase().includes(q) || (p.repo_url || '').toLowerCase().includes(q);
+      const matchS = !statusFilter || p.status === statusFilter;
+      return matchQ && matchS;
+    });
     const container = $('#projectList');
     if (list.length === 0) {
       container.innerHTML = '<p style="color:var(--text3)">还没有安装任何项目</p>';
@@ -383,6 +447,15 @@ async function loadProjects() {
       </div>`;
     }).join('');
   } catch (err) { console.error('loadProjects:', err); }
+  // 更新侧边栏项目计数
+  try {
+    const all = await api('/project/list');
+    const cnt = (all.data || []).length;
+    const badge = $('#projectCountBadge');
+    const label = $('#projectsTotalLabel');
+    if (badge) { if (cnt > 0) { badge.textContent = cnt; badge.style.display = 'flex'; } else badge.style.display = 'none'; }
+    if (label) label.textContent = `共 ${cnt} 个`;
+  } catch (_) {}
 }
 
 function statusLabel(s) {
@@ -395,16 +468,16 @@ async function startProject(id) {
     showLoading('正在启动...');
     const res = await api(`/process/${id}/start`, { method: 'POST' });
     hideLoading();
-    alert(res.message);
+    toast(res.message, 'info');
     loadProjects();
-  } catch (err) { hideLoading(); alert('启动失败: ' + err.message); }
+  } catch (err) { hideLoading(); toast('启动失败: ' + err.message, 'err'); }
 }
 
 async function stopProject(id) {
   try {
     await api(`/process/${id}/stop`, { method: 'POST' });
     loadProjects();
-  } catch (err) { alert('停止失败: ' + err.message); }
+  } catch (err) { toast('停止失败: ' + err.message, 'err'); }
 }
 
 async function deleteProject(id) {
@@ -412,7 +485,7 @@ async function deleteProject(id) {
   try {
     await api(`/project/${id}`, { method: 'DELETE' });
     loadProjects();
-  } catch (err) { alert('删除失败: ' + err.message); }
+  } catch (err) { toast('删除失败: ' + err.message, 'err'); }
 }
 
 async function uninstallProject(id, name) {
@@ -425,7 +498,7 @@ async function uninstallProject(id, name) {
     hideLoading();
   } catch (err) {
     hideLoading();
-    alert('获取卸载信息失败: ' + err.message);
+    toast('获取卸载信息失败: ' + err.message, 'err');
     return;
   }
 
@@ -447,11 +520,11 @@ async function uninstallProject(id, name) {
     });
     hideLoading();
     const steps = res.data.results.map(r => `${r.success ? '✅' : '❌'} ${r.msg}`).join('\n');
-    alert(`✅ ${res.message}\n\n${steps}`);
+    toast(`✅ ${res.message}\n\n${steps}`, 'info');
     loadProjects();
   } catch (err) {
     hideLoading();
-    alert('卸载失败: ' + err.message);
+    toast('卸载失败: ' + err.message, 'err');
   }
 }
 
@@ -517,7 +590,7 @@ async function setDefaultProvider(key) {
   try {
     await api('/ai/providers/default', { method: 'POST', body: JSON.stringify({ key }) });
     loadProviders();
-  } catch (err) { alert('切换失败: ' + err.message); }
+  } catch (err) { toast('切换失败: ' + err.message, 'err'); }
 }
 
 async function removeProvider(key) {
@@ -525,7 +598,7 @@ async function removeProvider(key) {
   try {
     await api(`/ai/providers/${key}`, { method: 'DELETE' });
     loadProviders();
-  } catch (err) { alert('删除失败: ' + err.message); }
+  } catch (err) { toast('删除失败: ' + err.message, 'err'); }
 }
 
 async function testProvider(key) {
@@ -533,8 +606,8 @@ async function testProvider(key) {
   try {
     const res = await api('/ai/providers/test', { method: 'POST', body: JSON.stringify({ key }) });
     hideLoading();
-    alert('✅ ' + res.message + '\n\n回复: ' + res.data.response);
-  } catch (err) { hideLoading(); alert('连接失败: ' + err.message); }
+    toast('✅ ' + res.message + '\n\n回复: ' + res.data.response, 'info');
+  } catch (err) { hideLoading(); toast('连接失败: ' + err.message, 'err'); }
 }
 
 function initCustomProviderForm() {
@@ -559,7 +632,7 @@ function initCustomProviderForm() {
       await api('/ai/providers', { method: 'POST', body: JSON.stringify(body) });
       hide($('#customProviderForm'));
       loadProviders();
-    } catch (err) { alert('保存失败: ' + err.message); }
+    } catch (err) { toast('保存失败: ' + err.message, 'err'); }
   });
 }
 
@@ -652,6 +725,8 @@ function init() {
     loadProjects();
   });
   $('#projectSearch').addEventListener('input', loadProjects);
+  const _pf = $('#projectFilter');
+  if (_pf) _pf.addEventListener('change', loadProjects);
   $('#scanBtn').addEventListener('click', runScan);
 
   // 初始环境检测
@@ -664,6 +739,9 @@ function init() {
   // 检测 AI 提供商是否配置
   api('/ai/providers').then(res => {
     const configured = (res.data || []).filter(p => p.configured);
+    // 更新侧边栏 AI 状态指示点
+    const dot = $('#aiStatusDot');
+    if (dot) dot.style.background = configured.length > 0 ? 'var(--success)' : 'var(--warning)';
     if (configured.length === 0) {
       const hint = document.createElement('div');
       hint.className = 'ai-hint-banner';
@@ -672,6 +750,44 @@ function init() {
       document.querySelector('.main-content')?.prepend(hint);
     }
   }).catch(() => {});
+
+  // 快捷示例点击
+  document.querySelectorAll('.example-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const url = chip.dataset.url;
+      const input = $('#repoUrl');
+      if (input) { input.value = url; input.focus(); updateClearBtn(); }
+    });
+  });
+
+  // URL 清除按钮
+  function updateClearBtn() {
+    const input = $('#repoUrl');
+    const btn = $('#clearUrlBtn');
+    if (!input || !btn) return;
+    if (input.value.trim()) btn.classList.remove('hidden');
+    else btn.classList.add('hidden');
+  }
+  $('#repoUrl').addEventListener('input', updateClearBtn);
+  const _clearBtn = $('#clearUrlBtn');
+  if (_clearBtn) _clearBtn.addEventListener('click', () => {
+    $('#repoUrl').value = ''; updateClearBtn(); $('#repoUrl').focus();
+  });
+
+  // 清除对话历史按钮
+  const _clearChat = $('#clearChatBtn');
+  if (_clearChat) _clearChat.addEventListener('click', async () => {
+    if (!state.currentProject) return;
+    if (!confirm('清除本项目的全部对话历史？')) return;
+    try {
+      await api(`/ai/conversations/${state.currentProject.id}`, { method: 'DELETE' });
+      document.getElementById('chatMessages').innerHTML = '';
+      toast('对话历史已清除', 'ok');
+    } catch (err) { toast('清除失败: ' + err.message, 'err'); }
+  });
+
+  // 加载近期项目（首页展示）
+  loadRecentProjects();
 
   console.log('🚀 GADA initialized');
 }
@@ -746,9 +862,9 @@ async function importProject(name, dirPath, types) {
     showLoading('导入中...');
     const res = await api('/scan/import', { method: 'POST', body: JSON.stringify({ name, dirPath, types, repoUrl }) });
     hideLoading();
-    alert('✅ ' + res.message);
+    toast('✅ ' + res.message, 'info');
     runScan();
-  } catch (err) { hideLoading(); alert('导入失败: ' + err.message); }
+  } catch (err) { hideLoading(); toast('导入失败: ' + err.message, 'err'); }
 }
 
 async function forceRemoveDir(dirPath, name) {
@@ -757,9 +873,9 @@ async function forceRemoveDir(dirPath, name) {
     showLoading('删除中...');
     await api('/scan/remove', { method: 'DELETE', body: JSON.stringify({ dirPath }) });
     hideLoading();
-    alert(`✅ "${name}" 已删除`);
+    toast(`✅ "${name}" 已删除`, 'info');
     runScan();
-  } catch (err) { hideLoading(); alert('删除失败: ' + err.message); }
+  } catch (err) { hideLoading(); toast('删除失败: ' + err.message, 'err'); }
 }
 
 // ============================================
@@ -856,7 +972,7 @@ async function editProjectMeta(id, name) {
   try {
     await api(`/project/${id}`, { method: 'PUT', body: JSON.stringify({ notes, tags }) });
     loadProjects();
-  } catch (err) { alert('保存失败: ' + err.message); }
+  } catch (err) { toast('保存失败: ' + err.message, 'err'); }
 }
 
 // ============================================
@@ -900,4 +1016,36 @@ async function pullProject(id) {
     setProgress(state.progressValue, '更新失败: ' + err.message);
     appendLog('❌ ' + err.message, 'error');
   }
+}
+
+
+// ============================================
+// 首页近期项目
+// ============================================
+async function loadRecentProjects() {
+  try {
+    const res = await api('/project');
+    const projects = (res.data || []).slice(0, 5);
+    const section = document.getElementById('recentProjectsSection');
+    const list = document.getElementById('recentProjectsList');
+    if (!section || !list || projects.length === 0) return;
+    list.innerHTML = projects.map(p => `
+      <div class="recent-item" onclick="quickLaunch(${p.id})">
+        <span style="font-size:1.1rem">${p.status === 'running' ? '🟢' : p.status === 'failed' ? '🔴' : '⚪'}</span>
+        <span class="recent-item-name">${p.name}</span>
+        <span class="recent-item-status status-${p.status}">${statusLabel(p.status)}</span>
+        <span style="color:var(--text3);font-size:.8rem">→</span>
+      </div>
+    `).join('');
+    section.classList.remove('hidden');
+  } catch (_) {}
+}
+
+async function quickLaunch(id) {
+  // 切换到项目管理页
+  $$('.nav-item').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-tab="projects"]').classList.add('active');
+  $$('.tab').forEach(t => { t.classList.remove('active'); hide(t); });
+  show($('#projects')); $('#projects').classList.add('active');
+  await loadProjects();
 }
