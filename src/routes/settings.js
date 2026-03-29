@@ -77,10 +77,12 @@ router.post('/env', async (req, res) => {
     }
 
     const lines = content.split('\n');
-    const keyPattern = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=`);
+    // 匹配非注释行中的 key=value（不用 trim 避免误匹配注释行）
+    const keyPattern = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=`);
     let found = false;
     const updated = lines.map(line => {
-      if (keyPattern.test(line.trim())) { found = true; return `${key}=${value}`; }
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('#') && keyPattern.test(trimmed)) { found = true; return `${key}=${value}`; }
       return line;
     });
     if (!found) updated.push(`${key}=${value}`);

@@ -261,16 +261,7 @@ const ConversationDB = {
   }
 };
 
-module.exports = {
-  initDatabase,
-  getDb,
-  ProjectDB,
-  DeployLogDB,
-  ConfigDB,
-  ConversationDB
-};
-
-// 对话相关扩展
+// 对话相关扩展（在 module.exports 之前，确保导出时已包含这些方法）
 Object.assign(ConversationDB, {
   clearByProjectId: (projectId) => {
     return new Promise((resolve, reject) => {
@@ -292,3 +283,12 @@ Object.assign(ConversationDB, {
     });
   }
 });
+
+module.exports = {
+  initDatabase,
+  getDb,
+  ProjectDB,
+  DeployLogDB,
+  ConfigDB,
+  ConversationDB
+};

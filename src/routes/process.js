@@ -34,8 +34,8 @@ router.post('/:projectId/start', async (req, res) => {
     const project = await ProjectDB.getById(req.params.projectId);
     if (!project) return res.status(404).json({ error: 'Project not found' });
     const result = await startProject(project);
-    await ProjectDB.update(project.id, { status: 'running' });
-    res.json({ success: true, data: result, message: `项目已启动，端口: ${result.port}` });
+    await ProjectDB.update(project.id, { status: 'running', port: result.port });
+    res.json({ success: true, data: result, message: `项目已启动，端口: ${result.port}，访问: http://localhost:${result.port}` });
   } catch (err) {
     logger.error('Start project error:', err);
     res.status(500).json({ error: err.message });

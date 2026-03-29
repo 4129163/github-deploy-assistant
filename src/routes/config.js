@@ -14,9 +14,12 @@ const { logger } = require('../utils/logger');
 router.get('/:key', async (req, res) => {
   try {
     const { key } = req.params;
-    
+    // 屏蔽敏感配置的读取
+    const SENSITIVE = ['custom_ai_providers', 'api_key', 'token', 'secret'];
+    if (SENSITIVE.some(s => key.toLowerCase().includes(s))) {
+      return res.status(403).json({ error: '此配置项不允许通过 API 读取' });
+    }
     const value = await ConfigDB.get(key);
-    
     res.json({
       success: true,
       data: { key, value }

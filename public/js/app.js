@@ -375,8 +375,10 @@ async function loadProjects() {
           <button class="btn btn-primary" onclick="startProject(${p.id})">▶ 启动</button>
           <button class="btn btn-secondary" onclick="stopProject(${p.id})">⏹ 停止</button>
           ${isFailed ? `<button class="btn btn-secondary" onclick="retryDeploy(${p.id})">🔄 重试</button>` : ''}
+          <button class="btn btn-ghost" onclick="pullProject(${p.id})">⬇️ 更新</button>
           <button class="btn btn-ghost" onclick="openChat(${p.id})">💬 问AI</button>
           <button class="btn btn-secondary" onclick="uninstallProject(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🗑 卸载</button>
+          ${p.port ? `<a href="http://localhost:${p.port}" target="_blank" class="btn btn-primary" style="font-size:.78rem">🌐 打开</a>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -464,15 +466,16 @@ async function loadProviders() {
     ]);
     const currentDefault = defRes.data.default;
     const container = $('#providerList');
-
-    // 只显示已配置的 + 内置未配置的（内置始终显示）
     const providers = res.data;
     if (providers.length === 0) {
       container.innerHTML = '<p style="color:var(--text3)">暂无提供商</p>';
       return;
     }
+    // 已配置的显示在前，未配置的折叠
+    const configured = providers.filter(p => p.configured);
+    const unconfigured = providers.filter(p => !p.configured);
 
-    container.innerHTML = providers.map(p => {
+    const renderCard = (p) => {
       const isDefault = p.key === currentDefault || p.key === currentDefault + '_override';
       return `
       <div class="provider-card ${isDefault ? 'provider-default' : ''} ${!p.configured ? 'provider-unconfigured' : ''}">
@@ -493,7 +496,20 @@ async function loadProviders() {
           <button class="btn btn-ghost" style="margin-left:auto;font-size:.8rem" onclick="testProvider('${p.key}')">🔗 测试</button>
         </div>
       </div>`;
-    }).join('');
+    };
+
+    // 已配置在前，未配置折叠在「更多提供商」
+    let html = configured.map(renderCard).join('');
+    if (unconfigured.length > 0) {
+      html += `<div class="unconfigured-section">
+        <details>
+          <summary style="cursor:pointer;color:var(--text2);font-size:.85rem;padding:.5rem 0">▶ 更多可用提供商（${unconfigured.length} 个未配置）</summary>
+          <div class="provider-grid" style="margin-top:.75rem">${unconfigured.map(renderCard).join('')}</div>
+        </details>
+      </div>`;
+    }
+    if (!html) html = '<p style="color:var(--text3)">暂无已配置的提供商，请在上方粘贴 API Key</p>';
+    container.innerHTML = html;
   } catch (err) { console.error('loadProviders:', err); }
 }
 
@@ -861,3 +877,27 @@ async function loadHealthStatus() {
 
 // WebSocket 接收健康告警
 // (已在 initWebSocket onmessage 中处理 health_alert)
+
+// ============================================
+// Fix 11: Git Pull 更新项目
+// ============================================
+async function pullProject(id) {
+  if (!confirm('拉取最新代码？这会用 git pull 更新项目文件，不会影响运行中的进程。')) return;
+  state.deployLogLines = [];
+  state.progressValue = 20;
+  const el = $('#deployLog');
+  if (el) el.innerHTML = '';
+  setProgress(20, '拉取最新代码...');
+  showStep('step-deploying');
+  try {
+    const res = await api(`/deploy/pull/${id}`, { method: 'POST' });
+    setProgress(100, res.message || '更新完成');
+    setTimeout(() => {
+      showStep('step-done');
+      $('#doneMessage').textContent = res.message || '代码已更新到最新版本';
+    }, 800);
+  } catch (err) {
+    setProgress(state.progressValue, '更新失败: ' + err.message);
+    appendLog('❌ ' + err.message, 'error');
+  }
+}

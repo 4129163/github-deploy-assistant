@@ -200,3 +200,30 @@ router.post('/retry/:projectId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+/**
+ * 拉取最新代码（git pull）
+ * POST /api/deploy/pull/:projectId
+ */
+router.post('/pull/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const project = await ProjectDB.getById(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (!project.local_path || !require('fs-extra').pathExists(project.local_path)) {
+      return res.status(400).json({ error: '项目目录不存在，请重新克隆' });
+    }
+    const simpleGit = require('simple-git');
+    const git = simpleGit(project.local_path);
+    if (global.broadcastLog) global.broadcastLog(projectId, '🔄 正在拉取最新代码...');
+    const pullResult = await git.pull();
+    const summary = `已更新: +${pullResult.insertions} 行, -${pullResult.deletions} 行, ${pullResult.files?.length || 0} 个文件`;
+    if (global.broadcastLog) global.broadcastLog(projectId, `✅ ${summary}`);
+    await ProjectDB.update(projectId, { updated_at: new Date().toISOString() });
+    res.json({ success: true, message: summary, data: pullResult });
+  } catch (error) {
+    logger.error('Pull error:', error);
+    if (global.broadcastLog) global.broadcastLog(req.params.projectId, `❌ 拉取失败: ${error.message}`);
+    res.status(500).json({ error: `git pull 失败: ${error.message}` });
+  }
+});

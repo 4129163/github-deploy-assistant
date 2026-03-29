@@ -5,6 +5,7 @@
 
 const axios = require('axios');
 const { logger } = require('../utils/logger');
+let ProjectDB = null; // 延迟初始化，避免循环依赖
 
 const healthStatus = {}; // projectId -> { status, lastCheck, latency, failCount }
 
@@ -69,7 +70,7 @@ function startHealthChecker(getRunningProcesses) {
     processes
       .filter(p => p.status === 'running' && p.port)
       .forEach(p => {
-        const ProjectDB = require('./database').ProjectDB;
+        if (!ProjectDB) ProjectDB = require('./database').ProjectDB;
         ProjectDB.getById(p.projectId).then(project => {
           if (project) checkProject(p.projectId, p.port, project.health_url);
         }).catch(() => {});

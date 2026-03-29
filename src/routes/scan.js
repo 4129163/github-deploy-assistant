@@ -37,30 +37,6 @@ async function detectProjectType(dirPath) {
   return types;
 }
 
-/**
- * 获取目录大小（快速估算，只扫描一层）
- */
-async function getQuickSize(dirPath) {
-  let size = 0;
-  try {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.name === 'node_modules' || entry.name === 'venv' || entry.name === '.git') {
-        // 这些目录单独标记，不递归
-        try {
-          const st = await fs.stat(path.join(dirPath, entry.name));
-          size += 0; // 不计入，单独展示
-        } catch (_) {}
-        continue;
-      }
-      try {
-        const st = await fs.stat(path.join(dirPath, entry.name));
-        size += st.size;
-      } catch (_) {}
-    }
-  } catch (_) {}
-  return size;
-}
 
 function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
