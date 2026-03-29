@@ -445,27 +445,54 @@ async function uninstallProject(id, name) {
 // ============================================
 async function loadProviders() {
   try {
-    const res = await api('/ai/providers');
+    const [res, defRes] = await Promise.all([
+      api('/ai/providers'),
+      api('/ai/providers/default').catch(() => ({ data: { default: 'openai' } }))
+    ]);
+    const currentDefault = defRes.data.default;
     const container = $('#providerList');
-    container.innerHTML = res.data.map(p => `
-      <div class="provider-card">
-        <div class="provider-header">
-          <div class="provider-name">${p.name}</div>
-          <span class="provider-status ${p.configured ? 'configured' : 'unconfigured'}">
-            ${p.configured ? '✅ 已配置' : '未配置'}
-          </span>
+
+    // 只显示已配置的 + 内置未配置的（内置始终显示）
+    const providers = res.data;
+    if (providers.length === 0) {
+      container.innerHTML = '<p style="color:var(--text3)">暂无提供商</p>';
+      return;
+    }
+
+    container.innerHTML = providers.map(p => {
+      const isDefault = p.key === currentDefault || p.key === currentDefault + '_override';
+      return `
+      <div class="provider-card ${isDefault ? 'provider-default' : ''} ${!p.configured ? 'provider-unconfigured' : ''}">
+        <div class="provider-card-top">
+          <div class="provider-left">
+            <div class="provider-name">${p.name}</div>
+            <div class="provider-model">${p.defaultModel || '未设置模型'}</div>
+            ${p.baseURL ? `<div class="provider-url">${p.baseURL}</div>` : ''}
+          </div>
+          <div class="provider-right">
+            ${isDefault ? '<span class="provider-badge default">⚡ 使用中</span>' : `<button class="btn btn-ghost provider-set-default" onclick="setDefaultProvider('${p.key}')">设为默认</button>`}
+            ${!p.builtin ? `<button class="provider-delete-btn" title="删除" onclick="removeProvider('${p.key}')">✕</button>` : ''}
+          </div>
         </div>
-        <div class="provider-model">默认模型: ${p.defaultModel}</div>
-        <div class="provider-actions">
-          ${!p.builtin ? `<button class="btn btn-danger" onclick="removeProvider('${p.key}')">删除</button>` : ''}
-          <button class="btn btn-secondary" onclick="testProvider('${p.key}')">测试连接</button>
+        <div class="provider-footer">
+          <span class="provider-status-dot ${p.configured ? 'dot-ok' : 'dot-no'}"></span>
+          <span style="font-size:.8rem;color:var(--text2)">${p.configured ? '已配置 API Key' : '未配置 API Key'}</span>
+          <button class="btn btn-ghost" style="margin-left:auto;font-size:.8rem" onclick="testProvider('${p.key}')">🔗 测试</button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } catch (err) { console.error('loadProviders:', err); }
 }
 
+async function setDefaultProvider(key) {
+  try {
+    await api('/ai/providers/default', { method: 'POST', body: JSON.stringify({ key }) });
+    loadProviders();
+  } catch (err) { alert('切换失败: ' + err.message); }
+}
+
 async function removeProvider(key) {
-  if (!confirm(`确认删除提供商 "${key}"？`)) return;
+  if (!confirm(`确认删除提供商？删除后需重新配置才能使用。`)) return;
   try {
     await api(`/ai/providers/${key}`, { method: 'DELETE' });
     loadProviders();

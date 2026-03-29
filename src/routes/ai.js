@@ -162,6 +162,37 @@ router.post('/parse-config', (req, res) => {
  * 获取所有提供商（含自定义）
  * GET /api/ai/providers
  */
+
+/**
+ * 获取当前默认提供商
+ * GET /api/ai/providers/default
+ */
+router.get('/providers/default', async (req, res) => {
+  try {
+    const { ConfigDB } = require('../services/database');
+    const saved = await ConfigDB.get('default_ai_provider').catch(() => null);
+    const def = saved || process.env.DEFAULT_AI_PROVIDER || 'openai';
+    res.json({ success: true, data: { default: def } });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/**
+ * 设置默认提供商
+ * POST /api/ai/providers/default
+ * body: { key }
+ */
+router.post('/providers/default', async (req, res) => {
+  try {
+    const { key } = req.body;
+    if (!key) return res.status(400).json({ error: '缺少 key' });
+    const { ConfigDB } = require('../services/database');
+    process.env.DEFAULT_AI_PROVIDER = key;
+    await ConfigDB.set('default_ai_provider', key);
+    logger.info(`Default AI provider set to: ${key}`);
+    res.json({ success: true, message: `已将 "${key}" 设为默认` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/providers', (req, res) => {
   const all = getAllProviders();
   const result = Object.entries(all).map(([key, config]) => ({
