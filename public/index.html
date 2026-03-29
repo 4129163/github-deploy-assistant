@@ -184,7 +184,32 @@
           <h2>🤖 AI 提供商设置</h2>
           <button id="addProviderBtn" class="btn btn-primary">+ 添加自定义</button>
         </div>
-        <p class="hint">配置 AI 后，部署助手将能分析项目并回答你的问题。粘贴你的 API Key 即可。</p>
+
+        <!-- 一键粘贴区域 -->
+        <div class="quick-config-card">
+          <div class="quick-config-header">
+            <span>⚡ 一键粘贴配置</span>
+            <span class="quick-config-tip">支持直接粘贴中转站提供的任意格式（含 API Key、baseURL、模型名）</span>
+          </div>
+          <div class="quick-config-body">
+            <textarea id="quickConfigText" class="quick-config-textarea" placeholder="粘贴你的 API Key 或配置信息到这里...
+
+支持格式示例：
+• 纯 Key：sk-xxxxxxxxxxxxxxxx
+• 含地址：baseURL: https://xxx.com/v1\napiKey: sk-xxx
+• JSON：{&quot;apiKey&quot;:&quot;sk-xxx&quot;,&quot;baseURL&quot;:&quot;...&quot;}
+• 中转站说明文字（直接粘贴整段文字）
+
+重新粘贴新 Key 会自动覆盖旧配置，不会冲突。"></textarea>
+            <div class="quick-config-actions">
+              <button id="quickConfigBtn" class="btn btn-primary">⚡ 识别并应用</button>
+              <button id="quickConfigClearBtn" class="btn btn-ghost">清空</button>
+            </div>
+            <div id="quickConfigResult" class="quick-config-result hidden"></div>
+          </div>
+        </div>
+
+        <div class="section-divider">已配置的提供商</div>
         <div id="providerList" class="provider-grid"></div>
 
         <!-- 添加自定义提供商表单 -->

@@ -578,6 +578,7 @@ function init() {
   initChatModal();
   initCustomProviderForm();
   initReadmeToggle();
+  initQuickConfig();
 
   $('#analyzeBtn').addEventListener('click', analyzeRepo);
   $('#repoUrl').addEventListener('keypress', e => { if (e.key === 'Enter') analyzeRepo(); });
@@ -703,4 +704,64 @@ async function forceRemoveDir(dirPath, name) {
     alert(`✅ "${name}" 已删除`);
     runScan();
   } catch (err) { hideLoading(); alert('删除失败: ' + err.message); }
+}
+
+// ============================================
+// 一键粘贴 AI 配置
+// ============================================
+function initQuickConfig() {
+  const btn = $('#quickConfigBtn');
+  const clearBtn = $('#quickConfigClearBtn');
+  const textarea = $('#quickConfigText');
+  const result = $('#quickConfigResult');
+
+  if (!btn) return;
+
+  clearBtn.addEventListener('click', () => {
+    textarea.value = '';
+    hide(result);
+    textarea.focus();
+  });
+
+  btn.addEventListener('click', async () => {
+    const text = textarea.value.trim();
+    if (!text) { textarea.focus(); return; }
+
+    btn.disabled = true;
+    btn.textContent = '识别中...';
+    hide(result);
+
+    try {
+      const res = await api('/ai/quick-config', { method: 'POST', body: JSON.stringify({ text }) });
+      show(result);
+
+      if (res.success) {
+        result.className = 'quick-config-result ok';
+        const items = res.data.results.map(r =>
+          `<div class="result-item">${r.success ? '✅' : '❌'} <strong>${r.name}</strong>${r.model ? ' · ' + r.model : ''}${r.baseURL ? '<br><span style="font-size:.78rem;opacity:.7">' + r.baseURL + '</span>' : ''}</div>`
+        ).join('');
+        result.innerHTML = `<strong>${res.message}</strong><br><br>${items}<br><div style="font-size:.8rem;opacity:.7">配置已立即生效。重新粘贴新 Key 会自动覆盖，无需手动删除旧配置。</div>`;
+        textarea.value = '';
+        // 刷新提供商列表
+        setTimeout(loadProviders, 500);
+        // 移除 AI 未配置横幅
+        document.querySelector('.ai-hint-banner')?.remove();
+      } else {
+        result.className = 'quick-config-result error';
+        result.innerHTML = `<strong>${res.error || '识别失败'}</strong><br><br>支持格式：<ul style="margin:.5rem 0 0 1rem;font-size:.82rem"><li>纯 Key：sk-xxx</li><li>含地址：baseURL: https://xxx.com/v1<br>apiKey: sk-xxx</li><li>JSON 格式</li><li>直接粘贴中转站说明文字</li></ul>`;
+      }
+    } catch (err) {
+      show(result);
+      result.className = 'quick-config-result error';
+      result.innerHTML = `❌ ${err.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '⚡ 识别并应用';
+    }
+  });
+
+  // 支持 Ctrl+Enter 快捷键触发
+  textarea.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') btn.click();
+  });
 }

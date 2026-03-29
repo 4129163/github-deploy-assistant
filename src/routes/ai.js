@@ -194,6 +194,89 @@ router.post('/providers', async (req, res) => {
 });
 
 /**
+ * 一键粘贴配置接口
+ * POST /api/ai/quick-config
+ * body: { text } — 用户粘贴的任意文本（包含 key/baseURL 等）
+ *
+ * 逻辑：
+ * 1. 解析文本，提取所有可识别的 AI 配置
+ * 2. 对每条配置：
+ *    - 如果是内置提供商（openai/deepseek 等）→ 更新 process.env + 数据库
+ *    - 如果有自定义 baseURL → 注册为自定义提供商
+ * 3. 重复粘贴新 key → 覆盖旧值，不会冲突
+ * 4. 返回识别结果，让前端展示确认信息
+ */
+router.post('/quick-config', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: '请粘贴包含 API Key 的文本' });
+
+    const { parseAIConfig, addCustomProvider, getDefaultBaseURL, getDefaultModel } = require('../services/ai');
+    const { ConfigDB } = require('../services/database');
+
+    const parsed = parseAIConfig(text);
+    if (parsed.length === 0) {
+      return res.status(400).json({ error: '未能识别出有效的 API Key，请检查格式' });
+    }
+
+    const results = [];
+    for (const cfg of parsed) {
+      try {
+        const key = cfg.provider;
+        const apiKey = cfg.apiKey;
+        const baseURL = cfg.baseURL || getDefaultBaseURL(cfg.provider);
+        const model = cfg.model || getDefaultModel(cfg.provider);
+
+        // 更新内存中的环境变量（当次运行生效）
+        const envKeyMap = {
+          openai: 'OPENAI_API_KEY', deepseek: 'DEEPSEEK_API_KEY',
+          gemini: 'GEMINI_API_KEY', claude: 'CLAUDE_API_KEY',
+          moonshot: 'MOONSHOT_API_KEY', qwen: 'QWEN_API_KEY', zhipu: 'ZHIPU_API_KEY'
+        };
+        if (envKeyMap[key]) {
+          process.env[envKeyMap[key]] = apiKey;
+          if (baseURL) process.env[key.toUpperCase() + '_BASE_URL'] = baseURL;
+          if (model) process.env[key.toUpperCase() + '_MODEL'] = model;
+        }
+
+        // 持久化到数据库（服务重启后仍有效）
+        const providerCfg = {
+          name: cfg.name,
+          baseURL,
+          apiKey,
+          models: [model],
+          defaultModel: model,
+          builtin: false
+        };
+        // 内置提供商也存到自定义表（优先级更高，覆盖内置默认值）
+        await addCustomProvider(key + '_override', { ...providerCfg, name: cfg.name + '（已配置）' });
+
+        // 同时更新 DEFAULT_AI_PROVIDER
+        process.env.DEFAULT_AI_PROVIDER = key;
+        await ConfigDB.set('default_ai_provider', key);
+
+        results.push({ provider: cfg.provider, name: cfg.name, model, baseURL, success: true });
+        logger.info(`Quick config applied: ${cfg.provider} (${cfg.name})`);
+      } catch (err) {
+        results.push({ provider: cfg.provider, name: cfg.name, success: false, error: err.message });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    res.json({
+      success: successCount > 0,
+      data: { results, total: parsed.length, applied: successCount },
+      message: successCount > 0
+        ? `✅ 已识别并应用 ${successCount} 个 AI 配置`
+        : '⚠️ 识别失败，请检查格式'
+    });
+  } catch (error) {
+    logger.error('Quick config error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * 删除自定义提供商
  * DELETE /api/ai/providers/:key
  */

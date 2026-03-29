@@ -309,36 +309,128 @@ async function answerQuestion(project, question, history = [], provider = null) 
 /**
  * 智能识别粘贴文本中的 AI 配置信息
  */
+/**
+ * 智能解析粘贴文本中的 AI 配置
+ * 支持格式：
+ * - 纯 API Key（自动识别提供商）
+ * - "baseURL: xxx\napiKey: xxx\nmodel: xxx" 格式
+ * - JSON 格式
+ * - 中转站常见说明文本（含 baseURL + key）
+ * - 重复粘贴新 key 会覆盖旧的，不冲突
+ */
 function parseAIConfig(text) {
+  if (!text || typeof text !== 'string') return [];
   const configs = [];
+  const t = text.trim();
 
-  // OpenAI
-  const openaiMatch = text.match(/sk-[a-zA-Z0-9]{20,}/);
-  if (openaiMatch) configs.push({ provider: 'openai', key: openaiMatch[0] });
+  // ── 1. 尝试 JSON 格式 ──
+  try {
+    const json = JSON.parse(t);
+    const baseURL = json.baseURL || json.base_url || json.baseUrl || json.api_base || '';
+    const apiKey  = json.apiKey  || json.api_key  || json.key || '';
+    const model   = json.model   || json.defaultModel || json.default_model || '';
+    const name    = json.name    || json.provider || 'custom';
+    if (apiKey) {
+      configs.push({ provider: detectProviderByKey(apiKey, baseURL), apiKey, baseURL, model, name, source: 'json' });
+      return configs;
+    }
+  } catch (_) {}
 
-  // DeepSeek（sk- 开头但全小写hex）
-  const deepseekMatch = text.match(/sk-[a-f0-9]{32}/);
-  if (deepseekMatch && !openaiMatch) configs.push({ provider: 'deepseek', key: deepseekMatch[0] });
+  // ── 2. 提取所有可能的 URL 和 Key ──
+  const urlMatches = [...t.matchAll(/https?:\/\/[^\s"'<>，,\n]+/g)].map(m => m[0].replace(/[/]+$/, ''));
+  const keyMatches = [
+    // Claude
+    ...([...t.matchAll(/sk-ant-[a-zA-Z0-9_-]{40,}/g)].map(m => ({ key: m[0], provider: 'claude' }))),
+    // Gemini
+    ...([...t.matchAll(/AIzaSy[a-zA-Z0-9_-]{33}/g)].map(m => ({ key: m[0], provider: 'gemini' }))),
+    // 通用 sk- 前缀（OpenAI / DeepSeek / Moonshot / Qwen 等）
+    ...([...t.matchAll(/sk-[a-zA-Z0-9_-]{16,}/g)].map(m => ({ key: m[0], provider: null }))),
+  ];
 
-  // Gemini
-  const geminiMatch = text.match(/AIzaSy[a-zA-Z0-9_-]{33}/);
-  if (geminiMatch) configs.push({ provider: 'gemini', key: geminiMatch[0] });
-
-  // Claude
-  const claudeMatch = text.match(/sk-ant-[a-zA-Z0-9-_]{40,}/);
-  if (claudeMatch) configs.push({ provider: 'claude', key: claudeMatch[0] });
-
-  // Moonshot
-  const moonshotMatch = text.match(/sk-[a-zA-Z0-9]{40,}/);
-  if (moonshotMatch && text.toLowerCase().includes('moonshot')) {
-    configs.push({ provider: 'moonshot', key: moonshotMatch[0] });
+  // ── 3. 提取可能的 model 名 ──
+  const modelPatterns = [
+    /(?:model|模型)[\s:：=]+([\w./-]+)/i,
+    /(gpt-[\w.-]+|deepseek-[\w-]+|claude-[\w-]+|gemini-[\w-]+|moonshot-[\w-]+|qwen-[\w-]+|glm-[\w-]+)/i,
+  ];
+  let detectedModel = '';
+  for (const p of modelPatterns) {
+    const m = t.match(p);
+    if (m) { detectedModel = m[1]; break; }
   }
 
-  // 提取 base URL
-  const baseUrlMatch = text.match(/https:\/\/[^\s"']+v\d+[^\s"']*/);
-  if (baseUrlMatch) configs.forEach(c => c.baseUrl = baseUrlMatch[0]);
+  // ── 4. 找 baseURL（优先找 /v1 结尾的）──
+  const apiUrls = urlMatches.filter(u => /\/v\d/.test(u) || u.includes('api.') || u.includes('openai') || u.includes('deepseek') || u.includes('anthropic') || u.includes('gemini'));
+  const baseURL = apiUrls[0] || '';
+
+  // ── 5. 组合结果 ──
+  for (const { key, provider: hintProvider } of keyMatches) {
+    const provider = hintProvider || detectProviderByKey(key, baseURL, t);
+    // 避免重复
+    if (configs.some(c => c.apiKey === key)) continue;
+    configs.push({
+      provider,
+      apiKey: key,
+      baseURL: baseURL || getDefaultBaseURL(provider),
+      model: detectedModel || getDefaultModel(provider),
+      name: getProviderName(provider),
+      source: 'text'
+    });
+  }
 
   return configs;
+}
+
+/**
+ * 根据 key 格式和上下文推断提供商
+ */
+function detectProviderByKey(key, baseURL = '', context = '') {
+  const ctx = (baseURL + ' ' + context).toLowerCase();
+  if (key.startsWith('sk-ant-')) return 'claude';
+  if (key.startsWith('AIzaSy')) return 'gemini';
+  if (ctx.includes('deepseek')) return 'deepseek';
+  if (ctx.includes('moonshot') || ctx.includes('kimi')) return 'moonshot';
+  if (ctx.includes('qwen') || ctx.includes('dashscope') || ctx.includes('aliyun')) return 'qwen';
+  if (ctx.includes('zhipu') || ctx.includes('glm') || ctx.includes('bigmodel')) return 'zhipu';
+  if (ctx.includes('openai') || ctx.includes('gpt')) return 'openai';
+  // 根据 key 长度/格式猜测
+  if (/sk-[a-f0-9]{32}$/.test(key)) return 'deepseek';
+  if (key.length > 80) return 'claude';
+  return 'openai'; // 默认
+}
+
+function getDefaultBaseURL(provider) {
+  const map = {
+    openai: 'https://api.openai.com/v1',
+    deepseek: 'https://api.deepseek.com/v1',
+    gemini: 'https://generativelanguage.googleapis.com/v1beta',
+    claude: 'https://api.anthropic.com/v1',
+    moonshot: 'https://api.moonshot.cn/v1',
+    qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+  };
+  return map[provider] || '';
+}
+
+function getDefaultModel(provider) {
+  const map = {
+    openai: 'gpt-4o',
+    deepseek: 'deepseek-chat',
+    gemini: 'gemini-pro',
+    claude: 'claude-3-sonnet-20240229',
+    moonshot: 'moonshot-v1-8k',
+    qwen: 'qwen-turbo',
+    zhipu: 'glm-4-flash',
+  };
+  return map[provider] || '';
+}
+
+function getProviderName(provider) {
+  const map = {
+    openai: 'OpenAI', deepseek: 'DeepSeek', gemini: 'Google Gemini',
+    claude: 'Anthropic Claude', moonshot: '月之暗面 Kimi',
+    qwen: '通义千问', zhipu: '智谱 GLM',
+  };
+  return map[provider] || provider;
 }
 
 module.exports = {
@@ -352,5 +444,9 @@ module.exports = {
   analyzeRepo,
   generateDeployScript,
   answerQuestion,
-  parseAIConfig
+  parseAIConfig,
+  detectProviderByKey,
+  getDefaultBaseURL,
+  getDefaultModel,
+  getProviderName
 };
