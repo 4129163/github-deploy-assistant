@@ -341,7 +341,7 @@ async function loadProjects() {
           <button class="btn btn-primary" onclick="startProject(${p.id})">▶ 启动</button>
           <button class="btn btn-secondary" onclick="stopProject(${p.id})">⏹ 停止</button>
           <button class="btn btn-ghost" onclick="openChat(${p.id})">💬 问AI</button>
-          <button class="btn btn-danger" onclick="deleteProject(${p.id})">🗑</button>
+          <button class="btn btn-secondary" onclick="uninstallProject(${p.id}, '${p.name}')">🗑 卸载</button>
         </div>
       </div>`;
     }).join('');
@@ -376,6 +376,46 @@ async function deleteProject(id) {
     await api(`/project/${id}`, { method: 'DELETE' });
     loadProjects();
   } catch (err) { alert('删除失败: ' + err.message); }
+}
+
+async function uninstallProject(id, name) {
+  // 先获取卸载预览
+  showLoading('分析卸载内容...');
+  let preview;
+  try {
+    const res = await api(`/project/${id}/uninstall-preview`);
+    preview = res.data;
+    hideLoading();
+  } catch (err) {
+    hideLoading();
+    alert('获取卸载信息失败: ' + err.message);
+    return;
+  }
+
+  // 构建确认弹窗内容
+  const itemList = preview.items.map(i => `• ${i.desc}${i.size ? ' (' + i.size + ')' : ''}`).join('\n');
+  const msg = `确认卸载项目 "${name}"？\n\n将会删除：\n${itemList}\n\n占用空间合计: ${preview.totalSize}\n\n此操作不可恢复！`;
+
+  if (!confirm(msg)) return;
+
+  const keepBackups = preview.items.some(i => i.type === 'backups')
+    ? confirm('是否保留备份文件？（点击「确定」保留，「取消」一并删除）')
+    : false;
+
+  showLoading('正在卸载...');
+  try {
+    const res = await api(`/project/${id}/uninstall`, {
+      method: 'DELETE',
+      body: JSON.stringify({ keepBackups, keepData: false })
+    });
+    hideLoading();
+    const steps = res.data.results.map(r => `${r.success ? '✅' : '❌'} ${r.msg}`).join('\n');
+    alert(`✅ ${res.message}\n\n${steps}`);
+    loadProjects();
+  } catch (err) {
+    hideLoading();
+    alert('卸载失败: ' + err.message);
+  }
 }
 
 // ============================================

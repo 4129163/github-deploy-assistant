@@ -46,7 +46,7 @@
     "ora": "^5.4.1",
     "simple-git": "^3.21.0",
     "sqlite3": "^6.0.1",
-    "ws": "^8.20.0"
+    "ws": "^8.16.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
