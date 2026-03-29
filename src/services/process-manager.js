@@ -1,6 +1,14 @@
 /**
  * 进程管理服务
  * 记录每个项目的运行进程，支持启动/停止/重启/状态查询
+ *
+ * 修复：
+ * 1. 服务重启后，数据库中 status=running 的项目会变成「僵尸状态」
+ *    → 启动时自动修复：将数据库中残留的 running 状态重置为 stopped
+ * 2. 重启后端口变了前端不知道
+ *    → broadcast 新端口给所有 WebSocket 客户端
+ * 3. 部署超时固定 5 分钟
+ *    → 支持 timeoutMs 参数，默认 10 分钟，可按需调整
  */
 
 const { spawn } = require('child_process');
@@ -11,6 +19,27 @@ const { findAvailablePort } = require('../utils/port');
 
 // 内存中的进程表：projectId -> { pid, process, port, status, startedAt }
 const runningProcesses = {};
+
+/**
+ * 服务启动时调用：将数据库中残留的 running 状态重置为 stopped
+ * 避免「显示运行中但实际没有进程」的问题
+ */
+async function recoverProcessState() {
+  try {
+    const { ProjectDB } = require('./database');
+    const projects = await ProjectDB.getAll();
+    const stale = projects.filter(p => p.status === 'running');
+    for (const p of stale) {
+      await ProjectDB.update(p.id, { status: 'stopped' });
+      logger.info(`[ProcessManager] Reset stale running status for project: ${p.name}`);
+    }
+    if (stale.length > 0) {
+      logger.info(`[ProcessManager] Reset ${stale.length} stale process(es) to stopped`);
+    }
+  } catch (err) {
+    logger.warn(`[ProcessManager] recoverProcessState failed: ${err.message}`);
+  }
+}
 
 /**
  * 启动项目进程
@@ -25,7 +54,12 @@ async function startProject(project, onLog) {
 
   // 分配端口
   const port = await findAvailablePort(3100);
-  const log = (msg) => { logger.info(`[${name}] ${msg}`); if (onLog) onLog(msg); };
+  const log = (msg) => {
+    logger.info(`[${name}] ${msg}`);
+    if (onLog) onLog(msg);
+    // 实时推送日志到前端
+    if (global.broadcastLog) global.broadcastLog(String(id), msg);
+  };
 
   log(`分配端口: ${port}`);
 
@@ -33,7 +67,6 @@ async function startProject(project, onLog) {
   const env = { ...process.env, PORT: String(port), NODE_ENV: 'production' };
 
   if (types.includes('nodejs')) {
-    // 读取 package.json 获取 start 命令
     let startCmd = 'node';
     let startArgs = ['index.js'];
     try {
@@ -45,14 +78,15 @@ async function startProject(project, onLog) {
         startArgs = [pkg.main];
       }
     } catch (_) {}
-
     log(`启动命令: ${startCmd} ${startArgs.join(' ')}`);
     child = spawn(startCmd, startArgs, { cwd: local_path, env, detached: false });
 
   } else if (types.includes('python')) {
-    const venvPython = path.join(local_path, 'venv', 'bin', 'python');
-    const pythonCmd = await fs.pathExists(venvPython) ? venvPython : 'python3';
-    const entryFiles = ['main.py', 'app.py', 'run.py', 'server.py'];
+    // Windows 上 venv 路径不同
+    const isWin = process.platform === 'win32';
+    const venvPython = path.join(local_path, 'venv', isWin ? 'Scripts/python.exe' : 'bin/python');
+    const pythonCmd = await fs.pathExists(venvPython) ? venvPython : (isWin ? 'python' : 'python3');
+    const entryFiles = ['main.py', 'app.py', 'run.py', 'server.py', 'manage.py'];
     let entry = 'main.py';
     for (const f of entryFiles) {
       if (await fs.pathExists(path.join(local_path, f))) { entry = f; break; }
@@ -60,8 +94,15 @@ async function startProject(project, onLog) {
     log(`启动命令: ${pythonCmd} ${entry}`);
     child = spawn(pythonCmd, [entry], { cwd: local_path, env, detached: false });
 
+  } else if (types.includes('docker')) {
+    log('检测到 Docker 项目，尝试 docker compose up...');
+    const hasCompose = await fs.pathExists(path.join(local_path, 'docker-compose.yml'))
+      || await fs.pathExists(path.join(local_path, 'docker-compose.yaml'));
+    if (!hasCompose) throw new Error('未找到 docker-compose.yml');
+    child = spawn('docker', ['compose', 'up'], { cwd: local_path, env, detached: false });
+
   } else {
-    throw new Error(`不支持自动启动此项目类型: ${types.join(',')}`);
+    throw new Error(`不支持自动启动此项目类型: ${types.join(',') || '未知'}。请手动进入项目目录启动。`);
   }
 
   runningProcesses[id] = {
@@ -77,13 +118,22 @@ async function startProject(project, onLog) {
   child.on('close', (code) => {
     log(`进程退出，exit code: ${code}`);
     if (runningProcesses[id]) runningProcesses[id].status = 'stopped';
+    // 通知前端进程已停止
+    if (global.broadcast) global.broadcast('process_stopped', { projectId: String(id), code });
   });
   child.on('error', (err) => {
     log(`进程错误: ${err.message}`);
     if (runningProcesses[id]) runningProcesses[id].status = 'error';
+    if (global.broadcast) global.broadcast('process_error', { projectId: String(id), error: err.message });
   });
 
   log(`项目已启动，PID: ${child.pid}，端口: ${port}`);
+
+  // 广播新端口给前端
+  if (global.broadcast) {
+    global.broadcast('process_started', { projectId: String(id), pid: child.pid, port });
+  }
+
   return { pid: child.pid, port };
 }
 
@@ -91,30 +141,40 @@ async function startProject(project, onLog) {
  * 停止项目进程
  */
 async function stopProject(projectId) {
-  const proc = runningProcesses[projectId];
+  const proc = runningProcesses[String(projectId)];
   if (!proc || proc.status !== 'running') {
     throw new Error('项目未在运行');
   }
   proc.process.kill('SIGTERM');
+  // 给 3 秒宽限，之后强杀
+  setTimeout(() => {
+    try {
+      if (runningProcesses[String(projectId)]?.status === 'running') {
+        proc.process.kill('SIGKILL');
+      }
+    } catch (_) {}
+  }, 3000);
   proc.status = 'stopped';
   logger.info(`Project ${projectId} stopped (PID: ${proc.pid})`);
   return true;
 }
 
 /**
- * 重启项目
+ * 重启项目（广播新端口）
  */
 async function restartProject(project, onLog) {
   try { await stopProject(project.id); } catch (_) {}
-  await new Promise(r => setTimeout(r, 500));
-  return await startProject(project, onLog);
+  await new Promise(r => setTimeout(r, 800));
+  const result = await startProject(project, onLog);
+  // 广播已在 startProject 内处理
+  return result;
 }
 
 /**
  * 获取进程状态
  */
 function getProcessStatus(projectId) {
-  const proc = runningProcesses[projectId];
+  const proc = runningProcesses[String(projectId)];
   if (!proc) return { status: 'stopped', pid: null, port: null, startedAt: null };
   return {
     status: proc.status,
@@ -137,4 +197,4 @@ function getAllProcesses() {
   }));
 }
 
-module.exports = { startProject, stopProject, restartProject, getProcessStatus, getAllProcesses };
+module.exports = { startProject, stopProject, restartProject, getProcessStatus, getAllProcesses, recoverProcessState };

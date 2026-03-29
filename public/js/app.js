@@ -97,21 +97,42 @@ function initTabs() {
 function initWebSocket() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   state.ws = new WebSocket(`${proto}://${location.host}`);
+  state.ws.onopen = () => {
+    // 重连后，如果有正在部署的项目，重新订阅补发历史日志
+    if (state.currentProject) {
+      state.ws.send(JSON.stringify({ type: 'subscribe', projectId: String(state.currentProject.id) }));
+    }
+  };
   state.ws.onmessage = (e) => {
     try {
       const msg = JSON.parse(e.data);
       if (msg.type === 'log') {
-        const lvl = msg.data.message?.includes('错误') || msg.data.message?.includes('失败') ? 'error' : 'info';
+        const lvl = /错误|失败|error|Error/.test(msg.data.message) ? 'error'
+          : /成功|完成|done/.test(msg.data.message) ? 'success' : 'info';
         appendLog(msg.data.message, lvl);
         state.progressValue = Math.min(state.progressValue + 5, 90);
         setProgress(state.progressValue, msg.data.message);
+      } else if (msg.type === 'log_replay') {
+        // 断线重连后补发历史日志
+        const el = $('#deployLog');
+        if (el) {
+          el.innerHTML = '<span style="color:var(--text3);font-size:.8rem">[历史日志回放]</span>\n';
+          msg.data.forEach(m => m.data?.message && appendLog(m.data.message, 'info'));
+        }
       } else if (msg.type === 'deploy_done') {
         if (msg.data.success) {
           setProgress(100, '安装完成！');
-          setTimeout(() => showDone(state.currentProject, '自动安装成功！'), 800);
+          setTimeout(() => showDone(state.currentProject, '项目已成功安装！'), 800);
         } else {
           setProgress(state.progressValue, '安装遇到问题，请查看日志');
         }
+      } else if (msg.type === 'process_started') {
+        // 项目启动，前端更新端口显示
+        appendLog(`▶ 进程已启动，端口: ${msg.data.port}，PID: ${msg.data.pid}`, 'success');
+      } else if (msg.type === 'process_stopped') {
+        appendLog(`⏹ 进程已停止 (exit code: ${msg.data.code})`, 'info');
+      } else if (msg.type === 'process_error') {
+        appendLog(`❌ 进程错误: ${msg.data.error}`, 'error');
       }
     } catch (_) {}
   };
@@ -581,6 +602,18 @@ function init() {
     const badge = $('#envBadge');
     if (res.data.ready) { badge.textContent = '环境就绪'; badge.className = 'badge ok'; }
     else { badge.textContent = '环境缺失'; badge.className = 'badge warn'; }
+  }).catch(() => {});
+
+  // 检测 AI 提供商是否配置
+  api('/ai/providers').then(res => {
+    const configured = (res.data || []).filter(p => p.configured);
+    if (configured.length === 0) {
+      const hint = document.createElement('div');
+      hint.className = 'ai-hint-banner';
+      hint.innerHTML = `⚠️ 尚未配置 AI 提供商，AI 分析功能不可用。
+        <a href="#" onclick="document.querySelector('[data-tab=ai]').click();return false;">前往「AI 设置」配置 API Key</a>`;
+      document.querySelector('.main-content')?.prepend(hint);
+    }
   }).catch(() => {});
 
   console.log('🚀 GADA initialized');

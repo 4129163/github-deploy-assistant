@@ -256,3 +256,21 @@ label .input { color: var(--text); }
 .scan-tags { display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: .75rem; }
 .scan-meta { font-size: .82rem; color: var(--text2); margin-bottom: .75rem; }
 .scan-card-footer { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+/* AI 未配置提示横幅 */
+.ai-hint-banner {
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: var(--radius);
+  padding: .75rem 1.25rem;
+  margin-bottom: 1rem;
+  font-size: .88rem;
+  color: #92400e;
+}
+[data-theme=dark] .ai-hint-banner {
+  background: #2d1f00;
+  border-color: #b45309;
+  color: #fcd34d;
+}
+.ai-hint-banner a { color: #b45309; font-weight: 600; text-decoration: underline; }
+[data-theme=dark] .ai-hint-banner a { color: #fbbf24; }

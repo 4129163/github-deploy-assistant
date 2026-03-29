@@ -4,8 +4,7 @@
 
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-
-const DB_PATH = path.join(__dirname, '../../database/gada.db');
+const { DB_PATH } = require('../config');
 
 let db = null;
 
@@ -154,6 +153,16 @@ const ProjectDB = {
       db.run('DELETE FROM projects WHERE id = ?', [id], (err) => {
         if (err) reject(err);
         else resolve();
+      });
+    });
+  },
+
+  getByName: (name) => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT * FROM projects WHERE name = ? ORDER BY created_at DESC LIMIT 1', [name], (err, row) => {
+        if (err) reject(err);
+        else if (row) resolve({ ...row, config: row.config ? JSON.parse(row.config) : null });
+        else resolve(null);
       });
     });
   }

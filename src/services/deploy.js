@@ -73,7 +73,7 @@ function executeCommand(command, cwd, env = {}) {
     const child = exec(command, {
       cwd: resolvedCwd,
       env: { ...process.env, ...env },
-      timeout: 300000, // 5分钟超时
+      timeout: parseInt(process.env.DEPLOY_TIMEOUT_MS, 10) || 600000, // 默认10分钟，可通过 DEPLOY_TIMEOUT_MS 环境变量调整
       maxBuffer: 10 * 1024 * 1024 // 10MB 缓冲区
     });
 

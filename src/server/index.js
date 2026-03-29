@@ -22,6 +22,7 @@ const DB_DIR = path.dirname(DB_PATH);
 const { initDatabase } = require('../services/database');
 const { logger } = require('../utils/logger');
 const { loadCustomProviders } = require('../services/ai');
+const { recoverProcessState } = require('../services/process-manager');
 
 // 导入路由
 const repoRoutes = require('../routes/repo');
@@ -45,9 +46,34 @@ const wss = new WebSocket.Server({ server });
 // 存储所有连接的客户端
 const wsClients = new Set();
 
+// 最近日志缓存（每个 projectId 保留最近 200 条，供断线重连后补发）
+const LOG_CACHE_SIZE = 200;
+const logCache = {}; // projectId -> [{ type, data, time }]
+
+function cacheLog(projectId, msg) {
+  if (!logCache[projectId]) logCache[projectId] = [];
+  logCache[projectId].push(msg);
+  if (logCache[projectId].length > LOG_CACHE_SIZE) logCache[projectId].shift();
+}
+
 wss.on('connection', (ws) => {
   wsClients.add(ws);
   logger.info('WebSocket client connected');
+
+  // 客户端可发送 { type: 'subscribe', projectId } 订阅某项目日志
+  // 并立即回放缓存的历史日志
+  ws.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw);
+      if (msg.type === 'subscribe' && msg.projectId) {
+        const cached = logCache[msg.projectId] || [];
+        if (cached.length > 0) {
+          ws.send(JSON.stringify({ type: 'log_replay', data: cached }));
+        }
+      }
+    } catch (_) {}
+  });
+
   ws.on('close', () => {
     wsClients.delete(ws);
     logger.info('WebSocket client disconnected');
@@ -68,7 +94,9 @@ function broadcast(type, data) {
  * 向特定项目的订阅者推送日志
  */
 function broadcastLog(projectId, message, level = 'info') {
-  broadcast('log', { projectId, message, level });
+  const entry = { projectId, message, level, time: Date.now() };
+  cacheLog(String(projectId), { type: 'log', data: entry, time: Date.now() });
+  broadcast('log', entry);
 }
 
 // 挂载到全局，供其他模块使用
@@ -123,6 +151,10 @@ async function startServer() {
 
     await loadCustomProviders();
     logger.info('Custom AI providers loaded');
+
+    // 修复：服务重启后将残留 running 状态重置为 stopped
+    await recoverProcessState();
+    logger.info('Process state recovered');
 
     server.listen(PORT, () => {
       logger.info(`============================================`);

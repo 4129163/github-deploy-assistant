@@ -78,10 +78,16 @@ async function backupProject(project) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupName = `${project.name}-${timestamp}.tar.gz`;
     const backupPath = path.join(backupDir, backupName);
-    const { exec } = require('child_process');
+    const { spawn } = require('child_process');
     await new Promise((resolve, reject) => {
-      exec(`tar -czf "${backupPath}" -C "${path.dirname(project.local_path)}" "${path.basename(project.local_path)}" 2>/dev/null`,
-        (err) => err ? reject(err) : resolve());
+      // 用 spawn 数组参数，避免特殊字符注入
+      const tar = spawn('tar', [
+        '-czf', backupPath,
+        '-C', path.dirname(project.local_path),
+        path.basename(project.local_path)
+      ]);
+      tar.on('close', (code) => code === 0 ? resolve() : reject(new Error(`tar exit ${code}`)));
+      tar.on('error', reject);
     });
     logger.info(`Backup created: ${backupName}`);
     return backupPath;
@@ -131,12 +137,13 @@ router.post('/rollback/:projectId', async (req, res) => {
       return res.status(404).json({ error: '备份文件不存在' });
     }
 
-    // 删除当前目录，解压备份
+    // 删除当前目录，解压备份（用 spawn 数组参数，避免特殊字符注入）
     await fs.remove(project.local_path);
-    const { exec } = require('child_process');
+    const { spawn } = require('child_process');
     await new Promise((resolve, reject) => {
-      exec(`tar -xzf "${backupPath}" -C "${path.dirname(project.local_path)}"`,
-        (err) => err ? reject(err) : resolve());
+      const tar = spawn('tar', ['-xzf', backupPath, '-C', path.dirname(project.local_path)]);
+      tar.on('close', (code) => code === 0 ? resolve() : reject(new Error(`tar exit ${code}`)));
+      tar.on('error', reject);
     });
 
     await ProjectDB.update(projectId, { status: 'rolled_back' });
