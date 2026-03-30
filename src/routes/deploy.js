@@ -172,6 +172,132 @@ router.get('/logs/:projectId', async (req, res) => {
 module.exports = router;
 
 /**
+ * 检测项目是否有新版本
+ * GET /api/deploy/check-update/:projectId
+ */
+router.get('/check-update/:projectId', async (req, res) => {
+  try {
+    const project = await ProjectDB.getById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (!project.local_path || !(await fs.pathExists(project.local_path))) {
+      return res.status(400).json({ error: '项目目录不存在' });
+    }
+    const simpleGit = require('simple-git');
+    const git = simpleGit(project.local_path);
+    // fetch 远端但不 merge
+    await git.fetch(['--dry-run']).catch(() => git.fetch());
+    const log = await git.log(['HEAD..FETCH_HEAD']);
+    const behind = log.total || 0;
+    // 获取最新 commit 信息
+    const remoteLog = await git.log(['FETCH_HEAD', '-5']).catch(() => ({ all: [] }));
+    const localLog = await git.log(['-1']).catch(() => ({ latest: null }));
+    const remoteHead = remoteLog.latest;
+    const localHead = localLog.latest;
+    const hasUpdate = behind > 0;
+    res.json({
+      success: true,
+      data: {
+        has_update: hasUpdate,
+        commits_behind: behind,
+        local_commit: localHead ? { hash: localHead.hash.slice(0,7), message: localHead.message, date: localHead.date } : null,
+        remote_commit: remoteHead ? { hash: remoteHead.hash.slice(0,7), message: remoteHead.message, date: remoteHead.date } : null,
+        recent_changes: remoteLog.all.slice(0, 5).map(c => ({ hash: c.hash.slice(0,7), message: c.message, date: c.date, author: c.author_name })),
+      }
+    });
+  } catch (err) {
+    logger.error('Check update error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * 更新项目（git pull + 重新安装依赖）
+ * POST /api/deploy/update/:projectId
+ */
+router.post('/update/:projectId', async (req, res) => {
+  const { projectId } = req.params;
+  const { reinstall = false } = req.body;
+  try {
+    const project = await ProjectDB.getById(projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    if (!project.local_path || !(await fs.pathExists(project.local_path))) {
+      return res.status(400).json({ error: '项目目录不存在，请重新克隆' });
+    }
+    const simpleGit = require('simple-git');
+    const git = simpleGit(project.local_path);
+    const broadcast = (msg) => {
+      logger.info(`[Update:${projectId}] ${msg}`);
+      if (global.broadcastLog) global.broadcastLog(String(projectId), msg);
+    };
+
+    broadcast('🔄 开始检测更新...');
+
+    // 1. 暂存本地改动（如果有）
+    const status = await git.status();
+    const hasLocalChanges = status.files.length > 0;
+    if (hasLocalChanges) {
+      broadcast('📦 检测到本地改动，暂存中...');
+      await git.stash();
+    }
+
+    // 2. 拉取最新代码
+    broadcast('⬇️ 拉取最新代码...');
+    const pullResult = await git.pull();
+    const filesChanged = pullResult.files?.length || 0;
+    const summary = `已更新 ${filesChanged} 个文件，+${pullResult.insertions||0} 行，-${pullResult.deletions||0} 行`;
+    broadcast(`✅ ${summary}`);
+
+    // 3. 恢复本地暂存
+    if (hasLocalChanges) {
+      try { await git.stash(['pop']); broadcast('📦 本地改动已恢复'); }
+      catch (_) { broadcast('⚠️ 本地改动恢复失败（可能有冲突），请手动处理'); }
+    }
+
+    // 4. 判断是否需要重新安装依赖
+    const types = (project.project_type || '').split(',');
+    let depsUpdated = false;
+    const changedFiles = pullResult.files || [];
+    const needsNpmInstall = reinstall || changedFiles.some(f => f === 'package.json' || f === 'package-lock.json');
+    const needsPipInstall = reinstall || changedFiles.some(f => f === 'requirements.txt' || f === 'pyproject.toml');
+
+    if (types.includes('nodejs') && needsNpmInstall) {
+      broadcast('📦 package.json 有变化，重新安装依赖...');
+      const { executeCommand } = require('../services/deploy');
+      await executeCommand('npm install', project.local_path);
+      depsUpdated = true;
+      broadcast('✅ 依赖安装完成');
+    }
+    if (types.includes('python') && needsPipInstall) {
+      broadcast('🐍 requirements.txt 有变化，重新安装依赖...');
+      const venvPip = path.join(project.local_path, 'venv/bin/pip');
+      const pipCmd = (await fs.pathExists(venvPip)) ? `${venvPip} install -r requirements.txt` : 'pip3 install -r requirements.txt';
+      const { executeCommand } = require('../services/deploy');
+      await executeCommand(pipCmd, project.local_path);
+      depsUpdated = true;
+      broadcast('✅ 依赖安装完成');
+    }
+
+    await ProjectDB.update(projectId, { updated_at: new Date().toISOString() });
+    broadcast('🎉 更新完成！');
+
+    res.json({
+      success: true,
+      message: summary,
+      data: {
+        files_changed: filesChanged,
+        deps_updated: depsUpdated,
+        had_local_changes: hasLocalChanges,
+        pull_result: pullResult,
+      }
+    });
+  } catch (err) {
+    logger.error('Update error:', err);
+    if (global.broadcastLog) global.broadcastLog(String(projectId), `❌ 更新失败: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * 重试上次失败的部署
  * POST /api/deploy/retry/:projectId
  */

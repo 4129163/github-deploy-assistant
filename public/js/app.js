@@ -518,7 +518,7 @@ async function loadProjects() {
           <button class="btn btn-primary" onclick="startProject(${p.id})">▶ 启动</button>
           <button class="btn btn-secondary" onclick="stopProject(${p.id})">⏹ 停止</button>
           ${isFailed ? `<button class="btn btn-secondary" onclick="retryDeploy(${p.id})">🔄 重试</button>` : ''}
-          <button class="btn btn-ghost" onclick="pullProject(${p.id})">⬇️ 更新</button>
+          <button class="btn btn-ghost" id="updateBtn_${p.id}" onclick="checkAndUpdate(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🔔 检测更新</button>
           <button class="btn btn-ghost" onclick="openChat(${p.id})">💬 问AI</button>
           <button class="btn btn-secondary" onclick="uninstallProject(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🗑 卸载</button>
           ${p.port ? `<a href="http://localhost:${p.port}" target="_blank" class="btn btn-primary" style="font-size:.78rem">🌐 打开</a>` : ''}
@@ -1104,6 +1104,55 @@ async function pullProject(id) {
     }, 800);
   } catch (err) {
     setProgress(state.progressValue, '更新失败: ' + err.message);
+    appendLog('❌ ' + err.message, 'error');
+  }
+}
+
+// 检测更新并弹窗确认
+async function checkAndUpdate(id, name) {
+  const btn = $(`#updateBtn_${id}`);
+  if (btn) { btn.disabled = true; btn.textContent = '检测中...'; }
+  try {
+    const res = await api(`/deploy/check-update/${id}`);
+    const d = res.data;
+    if (btn) { btn.disabled = false; btn.textContent = d.has_update ? '⬆️ 有新版本' : '✅ 已最新'; }
+    if (!d.has_update) {
+      toast(`「${name}」已是最新版本（${d.local_commit?.hash || ''}）`, 'ok');
+      return;
+    }
+    // 构建更新日志
+    const changes = (d.recent_changes || []).map(c =>
+      `• [${c.hash}] ${c.message} — ${c.author} (${new Date(c.date).toLocaleDateString('zh-CN')})`
+    ).join('\n');
+    const msg = `「${name}」有 ${d.commits_behind} 个新提交可以更新：\n\n${changes}\n\n当前版本：${d.local_commit?.hash} ${d.local_commit?.message}\n最新版本：${d.remote_commit?.hash} ${d.remote_commit?.message}\n\n是否立即更新？（会自动检测是否需要重装依赖）`;
+    if (!confirm(msg)) return;
+    // 执行更新
+    if (btn) { btn.disabled = true; btn.textContent = '更新中...'; }
+    showUpdateModal(id, name);
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = '🔔 检测更新'; }
+    toast('检测失败: ' + err.message, 'err');
+  }
+}
+
+async function showUpdateModal(id, name) {
+  // 跳转到部署日志视图并执行更新
+  state.deployLogLines = [];
+  state.progressValue = 10;
+  const el = $('#deployLog');
+  if (el) el.innerHTML = '';
+  setProgress(10, `正在更新「${name}」...`);
+  showStep('step-deploying');
+  try {
+    const res = await api(`/deploy/update/${id}`, { method: 'POST', body: JSON.stringify({ reinstall: false }) });
+    setProgress(100, res.message || '更新完成');
+    setTimeout(() => {
+      showStep('step-done');
+      $('#doneMessage').textContent = `✅ ${res.message || '已更新到最新版本'}${res.data?.deps_updated ? '，依赖已重新安装' : ''}`;
+      loadProjects();
+    }, 800);
+  } catch (err) {
+    setProgress(state.progressValue, '更新失败');
     appendLog('❌ ' + err.message, 'error');
   }
 }
