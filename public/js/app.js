@@ -44,9 +44,24 @@ const show = (el) => el && el.classList.remove('hidden');
 const hide = (el) => el && el.classList.add('hidden');
 
 async function api(url, opts = {}) {
-  const res = await fetch(API + url, { headers: { 'Content-Type': 'application/json' }, ...opts });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  let res, data;
+  try {
+    res = await fetch(API + url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  } catch (netErr) {
+    throw new Error('网络请求失败，请检查服务是否正在运行（' + netErr.message + '）');
+  }
+  try {
+    data = await res.json();
+  } catch (_) {
+    throw new Error(`服务器返回了无效数据（HTTP ${res.status}）`);
+  }
+  if (!res.ok) {
+    const msg = data.error || data.message || `请求失败（HTTP ${res.status}）`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 

@@ -15,8 +15,13 @@ function initDatabase() {
         reject(err);
         return;
       }
-      
-      // 创建项目表
+
+      // 开启 WAL 模式（提升并发写入性能，防止 SQLITE_BUSY）
+      db.run('PRAGMA journal_mode = WAL;');
+      // 设置忙等超时 5 秒，高并发时自动重试而非立即报错
+      db.run('PRAGMA busy_timeout = 5000;');
+      // 提升写入安全性
+      db.run('PRAGMA synchronous = NORMAL;');
       db.run(`
         CREATE TABLE IF NOT EXISTS projects (
           id INTEGER PRIMARY KEY AUTOINCREMENT,

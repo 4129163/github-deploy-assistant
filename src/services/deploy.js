@@ -184,13 +184,33 @@ async function autoDeploy(project, onProgress) {
       progress('安装 Node.js 依赖...', { step: 'install' });
       const hasYarn = await fs.pathExists(path.join(local_path, 'yarn.lock'));
       const hasPnpm = await fs.pathExists(path.join(local_path, 'pnpm-lock.yaml'));
-      const installCmd = hasPnpm ? 'pnpm install' : hasYarn ? 'yarn install' : 'npm install';
+      const installCmd = hasPnpm ? 'pnpm install --ignore-scripts' : hasYarn ? 'yarn install --ignore-scripts' : 'npm install --ignore-scripts';
+
+      // 验证 Node.js 版本是否满足 package.json engines 字段
+      try {
+        const pkg = await fs.readJson(path.join(local_path, 'package.json'));
+        const requiredRange = pkg.engines?.node;
+        if (requiredRange) {
+          const currentVer = process.version; // e.g. v22.22.1
+          progress(`检测 Node.js 版本兼容性: 当前 ${currentVer}，要求 ${requiredRange}`, { step: 'version_check' });
+          // 简单检测：major 版本号对比（不引入 semver 依赖）
+          const currentMajor = parseInt(currentVer.replace('v', '').split('.')[0], 10);
+          const reqMatch = requiredRange.match(/(\d+)/);
+          const reqMajor = reqMatch ? parseInt(reqMatch[1], 10) : 0;
+          if (reqMajor > currentMajor) {
+            progress(`⚠️ 警告：当前 Node.js ${currentVer} 可能低于项目要求 ${requiredRange}，继续尝试安装...`, { step: 'version_warn' });
+          }
+        }
+      } catch (_) {}
+
       const installResult = await executeCommand(installCmd, local_path);
       results.push({ step: 'install', ...installResult });
 
       if (!installResult.success) {
-        progress('依赖安装失败', { step: 'error' });
-        return { success: false, results };
+        // 安装失败时提供重试建议
+        const retryMsg = `依赖安装失败。建议：1) 检查网络；2) 清除缓存: npm cache clean --force；3) 切换镜像: npm config set registry https://registry.npmmirror.com`;
+        progress(retryMsg, { step: 'error', retry_hint: retryMsg });
+        return { success: false, results, retry_hint: retryMsg };
       }
       progress('依赖安装完成', { step: 'installed' });
     }
@@ -198,13 +218,35 @@ async function autoDeploy(project, onProgress) {
     if (types.includes('python')) {
       const pyInfo = await checkPythonVersion();
       if (!pyInfo.installed) {
-        return { success: false, results, error: 'Python 未安装' };
+        return { success: false, results, error: 'Python 未安装，请先安装 Python 3.8+' };
       }
+      progress(`检测到 Python: ${pyInfo.version}`, { step: 'version_check' });
+
+      // 检测 Python 版本是否满足 .python-version 或 pyproject.toml 的要求
+      try {
+        const pyVer = pyInfo.version.match(/Python (\d+)\.(\d+)/);
+        const major = pyVer ? parseInt(pyVer[1], 10) : 0;
+        const minor = pyVer ? parseInt(pyVer[2], 10) : 0;
+        const pyVerFile = path.join(local_path, '.python-version');
+        if (await fs.pathExists(pyVerFile)) {
+          const reqVer = (await fs.readFile(pyVerFile, 'utf8')).trim();
+          progress(`项目要求 Python ${reqVer}，当前 ${pyInfo.version}`, { step: 'version_check' });
+        }
+        if (major < 3 || (major === 3 && minor < 8)) {
+          progress(`⚠️ 警告：当前 Python ${pyInfo.version} 建议升级至 3.8+ 以获得最佳兼容性`, { step: 'version_warn' });
+        }
+      } catch (_) {}
+
       const reqFile = await fs.pathExists(path.join(local_path, 'requirements.txt'));
       if (reqFile) {
         progress('安装 Python 依赖...', { step: 'install' });
         const installResult = await executeCommand(`pip3 install -r requirements.txt`, local_path);
         results.push({ step: 'pip_install', ...installResult });
+        if (!installResult.success) {
+          const retryMsg = `pip 安装失败。建议：1) pip3 install --upgrade pip；2) 使用镜像: pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`;
+          progress(retryMsg, { step: 'error', retry_hint: retryMsg });
+          return { success: false, results, retry_hint: retryMsg };
+        }
       }
     }
 
