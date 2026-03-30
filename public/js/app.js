@@ -2668,3 +2668,156 @@ async function deleteCustomTemplate(id) {
     toast('删除失败: ' + err.message, 'err');
   }
 }
+// ============================================
+// Docker 容器化面板
+// ============================================
+let _dockerProjectId = null;
+
+async function showDockerPanel() {
+  const projectId = state.currentProject?.id;
+  if (!projectId) { toast('请先完成项目部署', 'warn'); return; }
+  _dockerProjectId = projectId;
+
+  // 打开弹窗
+  const modal = $('#dockerModal');
+  modal.classList.remove('hidden'); modal.classList.add('flex');
+  $('#dockerLog').style.display = 'none';
+  $('#dockerLog').textContent = '';
+
+  await refreshDockerStatus();
+}
+
+function closeDockerModal() {
+  $('#dockerModal').classList.add('hidden');
+  $('#dockerModal').classList.remove('flex');
+}
+
+async function refreshDockerStatus() {
+  if (!_dockerProjectId) return;
+  try {
+    const res = await api(`/docker/status/${_dockerProjectId}`);
+    const d = res.data;
+    renderDockerStatus(d);
+    renderDockerActions(d);
+  } catch (err) {
+    $('#dockerStatusBar').innerHTML = `<span style="color:#ef4444">❌ 检测失败: ${err.message}</span>`;
+  }
+}
+
+function renderDockerStatus(d) {
+  const items = [
+    { label: 'Dockerfile', ok: d.hasDockerfile },
+    { label: 'docker-compose.yml', ok: d.hasCompose },
+    { label: '.dockerignore', ok: d.hasDockerIgnore },
+  ];
+  $('#dockerStatusBar').innerHTML = `
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+      ${items.map(i => `<span class="sw-env-badge" style="background:${i.ok?'#f0fdf4':'#fef2f2'};color:${i.ok?'#16a34a':'#dc2626'};padding:.25rem .7rem;border-radius:10px;font-size:.82rem">
+        ${i.ok ? '✅' : '❌'} ${i.label}
+      </span>`).join('')}
+    </div>`;
+}
+
+function renderDockerActions(d) {
+  const hasAll = d.hasDockerfile;
+  $('#dockerActions').innerHTML = `
+    <button class="btn btn-primary btn-sm" onclick="dockerGenerate(${!d.hasDockerfile})">
+      ${d.hasDockerfile ? '🔄 重新生成文件' : '🤖 AI 生成 Dockerfile'}
+    </button>
+    ${hasAll ? `
+    <button class="btn btn-secondary btn-sm" onclick="dockerBuild()">🔨 构建镜像</button>
+    <button class="btn btn-secondary btn-sm" onclick="dockerRun()">🚀 运行容器</button>
+    <button class="btn btn-ghost btn-sm" onclick="dockerStop()">🛑 停止容器</button>
+    <button class="btn btn-ghost btn-sm" onclick="dockerViewLogs()">📋 容器日志</button>
+    ` : ''}
+    <button class="btn btn-ghost btn-sm" onclick="refreshDockerStatus()">🔄 刷新状态</button>`;
+}
+
+function appendDockerLog(msg) {
+  const logEl = $('#dockerLog');
+  logEl.style.display = 'block';
+  logEl.textContent += msg + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function dockerGenerate(overwrite = false) {
+  if (!overwrite && !confirm('AI 将生成 Dockerfile 和 docker-compose.yml，继续？')) return;
+  appendDockerLog('🤖 AI 生成容器化文件...');
+  try {
+    const res = await api(`/docker/generate/${_dockerProjectId}`, {
+      method: 'POST', body: JSON.stringify({ overwrite }),
+    });
+    appendDockerLog(res.message || '生成完成');
+    toast(res.message || '文件已生成', 'ok');
+    await refreshDockerStatus();
+    // 预览生成的文件
+    if (res.data?.dockerfile) {
+      $('#dockerFilePreview').innerHTML = `
+        <details open style="margin-top:.75rem">
+          <summary style="cursor:pointer;font-weight:600">📄 Dockerfile 预览</summary>
+          <pre class="heal-cmd" style="margin-top:.4rem">${escapeHtml(res.data.dockerfile.slice(0, 1500))}${res.data.dockerfile.length > 1500 ? '\n...（已截断）' : ''}</pre>
+        </details>
+        <details style="margin-top:.5rem">
+          <summary style="cursor:pointer;font-weight:600">📄 docker-compose.yml 预览</summary>
+          <pre class="heal-cmd" style="margin-top:.4rem">${escapeHtml((res.data.compose || '').slice(0, 800))}</pre>
+        </details>`;
+    }
+  } catch (err) {
+    appendDockerLog('❌ ' + err.message);
+    toast('生成失败: ' + err.message, 'err');
+  }
+}
+
+async function dockerBuild() {
+  appendDockerLog('🔨 构建 Docker 镜像...');
+  try {
+    const res = await api(`/docker/build/${_dockerProjectId}`, { method: 'POST' });
+    appendDockerLog(res.message || '构建成功');
+    toast(res.message || '镜像构建成功', 'ok');
+  } catch (err) {
+    appendDockerLog('❌ ' + err.message);
+    toast('构建失败: ' + err.message, 'err');
+  }
+}
+
+async function dockerRun() {
+  appendDockerLog('🚀 启动容器...');
+  try {
+    const res = await api(`/docker/run/${_dockerProjectId}`, { method: 'POST' });
+    appendDockerLog(res.message || '容器已启动');
+    toast(res.message || '容器启动成功', 'ok');
+  } catch (err) {
+    appendDockerLog('❌ ' + err.message);
+    toast('启动失败: ' + err.message, 'err');
+  }
+}
+
+async function dockerStop() {
+  if (!confirm('停止并删除容器？镜像不会被删除，可以再次运行。')) return;
+  appendDockerLog('🛑 停止容器...');
+  try {
+    const res = await api(`/docker/stop/${_dockerProjectId}`, { method: 'POST' });
+    appendDockerLog(res.success ? '✅ 容器已停止' : '⚠️ 停止失败');
+    toast(res.success ? '容器已停止' : '停止失败', res.success ? 'ok' : 'warn');
+  } catch (err) {
+    appendDockerLog('❌ ' + err.message);
+    toast('停止失败: ' + err.message, 'err');
+  }
+}
+
+async function dockerViewLogs() {
+  appendDockerLog('📋 获取容器日志...');
+  try {
+    const res = await api(`/docker/logs/${_dockerProjectId}?lines=50`);
+    const logs = res.data?.logs || '（无日志）';
+    appendDockerLog('─── 容器日志 ───');
+    appendDockerLog(logs);
+  } catch (err) {
+    appendDockerLog('❌ ' + err.message);
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
