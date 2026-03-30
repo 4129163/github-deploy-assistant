@@ -1029,6 +1029,20 @@ function init() {
     if (!window._monitorInited) { initMonitor(); window._monitorInited = true; }
   });
 
+  // 新功能 Tab 初始化
+  document.querySelector('[data-tab="share"]')?.addEventListener('click', () => {
+    fillProjectSelects();
+  });
+  document.querySelector('[data-tab="remote"]')?.addEventListener('click', () => {
+    fillProjectSelects(); loadRemoteHosts();
+  });
+  document.querySelector('[data-tab="webhookx"]')?.addEventListener('click', () => {
+    fillProjectSelects(); loadWebhookxList();
+  });
+  document.querySelector('[data-tab="private"]')?.addEventListener('click', () => {
+    loadPrivTokens();
+  });
+
   console.log('🚀 GADA initialized');
 }
 
