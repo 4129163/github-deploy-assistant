@@ -325,11 +325,51 @@ async function stopProcess(projectId) {
 }
 
 // ============================================
+// 部署模式切换（链接 / 自然语言）
+// ============================================
+let _deployMode = 'link';
+
+function setDeployMode(mode) {
+  _deployMode = mode;
+  const input = $('#repoUrl');
+  const hint = $('#urlHint');
+  const icon = $('#urlPrefixIcon');
+  const linkBtn = $('#modeLinkBtn');
+  const nlBtn = $('#modeNlBtn');
+  const analyzeBtn = $('#analyzeBtn');
+  if (mode === 'link') {
+    input.placeholder = 'https://github.com/用户名/项目名';
+    if (hint) hint.innerHTML = '支持任意公开 GitHub 仓库链接 · 例：<code>https://github.com/owner/repo</code>';
+    if (icon) icon.textContent = '🔗';
+    if (analyzeBtn) analyzeBtn.innerHTML = '<span class="btn-icon">🔍</span> 开始分析';
+    linkBtn?.classList.replace('btn-ghost','btn-primary');
+    nlBtn?.classList.replace('btn-primary','btn-ghost');
+  } else {
+    input.placeholder = '描述你想部署的项目，例如：部署一个可以调用 GPT 的聊天网站';
+    if (hint) hint.innerHTML = 'AI 会自动搜索最合适的 GitHub 仓库并开始部署 · 支持中文描述';
+    if (icon) icon.textContent = '💬';
+    if (analyzeBtn) analyzeBtn.innerHTML = '<span class="btn-icon">⚡</span> 一键部署';
+    nlBtn?.classList.replace('btn-ghost','btn-primary');
+    linkBtn?.classList.replace('btn-primary','btn-ghost');
+  }
+  input.value = '';
+  input.focus();
+}
+
+// ============================================
 // 仓库分析
 // ============================================
 async function analyzeRepo() {
-  const url = $('#repoUrl').value.trim();
-  if (!url) { toast('请输入 GitHub 仓库地址', 'err'); return; }
+  const input = $('#repoUrl').value.trim();
+  if (!input) { toast(_deployMode === 'nl' ? '请描述你想部署的项目' : '请输入 GitHub 仓库地址', 'err'); return; }
+
+  // 自然语言模式：先搜索再部署
+  if (_deployMode === 'nl') {
+    await naturalLangDeployFromDesc(input);
+    return;
+  }
+
+  const url = input;
 
   showStep('step-analyzing');
   // 分析步骤动画
@@ -361,6 +401,61 @@ async function analyzeRepo() {
   } catch (err) {
     showStep('step-input');
     toast('分析失败: ' + err.message, 'err');
+  }
+}
+
+// 自然语言描述 → AI 搜索最佳仓库 → 一键部署
+async function naturalLangDeployFromDesc(desc) {
+  showStep('step-analyzing');
+  const steps = ['astep-fetch', 'astep-detect', 'astep-ai'];
+  steps.forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('active','done'); });
+  function setStep(idx) {
+    steps.forEach((id, i) => {
+      const el = document.getElementById(id); if (!el) return;
+      el.classList.remove('active','done');
+      if (i < idx) el.classList.add('done');
+      else if (i === idx) el.classList.add('active');
+    });
+  }
+  setStep(0);
+  $('#analyzingText').textContent = 'AI 理解你的需求...';
+  $('#analyzingSubtext').textContent = '正在搜索最合适的 GitHub 仓库';
+
+  try {
+    // 1. 自然语言搜索
+    const searchRes = await api('/search/query', {
+      method: 'POST',
+      body: JSON.stringify({ query: desc, maxResults: 5 }),
+    });
+    const repos = searchRes.data?.repos || [];
+    if (!repos.length) {
+      showStep('step-input');
+      toast('未找到匹配的仓库，请换个描述或直接粘贴链接', 'warn');
+      return;
+    }
+
+    const best = repos[0];
+    setStep(1);
+    $('#analyzingText').textContent = `找到最佳匹配: ${best.name}`;
+    $('#analyzingSubtext').textContent = `⭐ ${best.stars?.toLocaleString() || 0} · ${best.description?.slice(0,60) || ''}`;
+
+    // 询问用户确认
+    if (!confirm(`AI 推荐最佳匹配:\n\n📦 ${best.name}\n⭐ ${best.stars?.toLocaleString() || 0} Stars\n📝 ${best.description || ''}\n\n是否继续部署这个项目？`)) {
+      showStep('step-input');
+      return;
+    }
+
+    // 2. 分析仓库
+    setStep(2);
+    $('#analyzingText').textContent = 'AI 分析仓库结构...';
+    $('#analyzingSubtext').textContent = '生成部署方案';
+    const analyzeRes = await api('/repo/analyze', { method: 'POST', body: JSON.stringify({ url: best.url }) });
+    state.currentAnalysis = analyzeRes.data;
+    showAnalysisResult(analyzeRes.data);
+    toast(`已找到「${best.name}」，请确认部署方案`, 'ok');
+  } catch (err) {
+    showStep('step-input');
+    toast('自然语言部署失败: ' + err.message, 'err');
   }
 }
 
@@ -1447,13 +1542,64 @@ function renderSearchTable(repos) {
       <td style="font-size:.8rem">${r.scenario || '-'}</td>
       <td style="font-size:.8rem">${matBadge[r.maturity] || ''} ${r.maturity || '-'}</td>
       <td class="search-desc" title="${r.description}">${(r.description||'').slice(0,50)}${r.description&&r.description.length>50?'...':''}</td>
-      <td><button class="btn btn-primary btn-sm" onclick="deployFromSearch('${r.url}')">部署</button></td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="deployFromSearch('${r.url}')">🚀 部署</button>
+        <button class="btn btn-ghost btn-sm" onclick="naturalLangDeploy('${r.url}','${r.name.replace(/'/g,"\\'")}')">⚡ 一键</button>
+      </td>
     </tr>`).join('');
 }
 
 function deployFromSearch(url) {
   document.querySelector('[data-tab="home"]').click();
   setTimeout(() => { $('#repoUrl').value = url; $('#analyzeBtn').click(); }, 200);
+}
+
+// 自然语言部署：搜索结果一键直接触发部署（跳过手动分析步骤）
+async function naturalLangDeploy(url, name) {
+  if (!confirm(`一键部署「${name}」？\n\n将自动：\n1. 克隆仓库\n2. AI 分析并生成部署方案\n3. 自动安装依赖\n4. 完成部署\n\n点「确定」开始`)) return;
+
+  // 切换到首页部署视图
+  document.querySelector('[data-tab="home"]').click();
+  await new Promise(r => setTimeout(r, 200));
+
+  // 填入 URL，直接跳过分析，触发自动部署
+  $('#repoUrl').value = url;
+  showLoading(`正在一键部署「${name}」...`);
+  showStep('step-deploying');
+
+  try {
+    // 1. 分析仓库
+    const analyzeRes = await api('/ai/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ repoUrl: url }),
+    });
+    state.currentProject = analyzeRes.data;
+    appendLog('✅ 分析完成，开始部署...');
+    setProgress(20, '分析完成，开始自动部署...');
+
+    // 2. 自动部署
+    const deployRes = await api('/deploy/auto/' + analyzeRes.data.id, {
+      method: 'POST',
+      body: JSON.stringify({ mode: 'auto' }),
+    });
+
+    if (deployRes.success) {
+      setProgress(100, '部署成功！');
+      setTimeout(() => {
+        showStep('step-done');
+        $('#doneMessage').textContent = `✅ 「${name}」已成功部署！`;
+        hideLoading();
+        loadProjects();
+      }, 800);
+    } else {
+      appendLog('❌ 自动部署失败，请查看日志', 'error');
+      hideLoading();
+    }
+  } catch (err) {
+    appendLog('❌ ' + err.message, 'error');
+    hideLoading();
+    toast('一键部署失败: ' + err.message, 'err');
+  }
 }
 
 async function exportSearch(fmt) {

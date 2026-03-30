@@ -78,9 +78,14 @@
           </div>
 
           <div class="url-card">
+            <!-- 模式切换 -->
+            <div style="display:flex;gap:.5rem;margin-bottom:.75rem">
+              <button id="modeLinkBtn" class="btn btn-primary btn-sm" onclick="setDeployMode('link')">🔗 粘贴链接</button>
+              <button id="modeNlBtn" class="btn btn-ghost btn-sm" onclick="setDeployMode('nl')">💬 自然语言</button>
+            </div>
             <div class="url-box">
               <div class="url-input-wrap">
-                <span class="url-prefix-icon">🔗</span>
+                <span class="url-prefix-icon" id="urlPrefixIcon">🔗</span>
                 <input id="repoUrl" type="text"
                   placeholder="https://github.com/用户名/项目名"
                   class="url-input" autofocus>
@@ -90,7 +95,7 @@
                 <span class="btn-icon">🔍</span> 开始分析
               </button>
             </div>
-            <p class="url-hint">支持任意公开 GitHub 仓库链接 · 例：<code>https://github.com/owner/repo</code></p>
+            <p class="url-hint" id="urlHint">支持任意公开 GitHub 仓库链接 · 例：<code>https://github.com/owner/repo</code></p>
           </div>
 
           <!-- 快捷示例 -->
