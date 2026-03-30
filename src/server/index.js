@@ -133,6 +133,8 @@ const searchRoutes = require('../routes/search');
 app.use('/api/search', searchRoutes);
 const deviceRoutes = require('../routes/device');
 app.use('/api/device', deviceRoutes);
+const softwareRoutes = require('../routes/software');
+app.use('/api/software', softwareRoutes);
 
 // 全身自检接口
 app.get('/api/selfcheck', async (req, res) => {

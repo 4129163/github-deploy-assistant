@@ -44,6 +44,9 @@
         <button class="nav-item" data-tab="device">
           <span class="nav-icon">💻</span><span class="nav-label">设备状态</span>
         </button>
+        <button class="nav-item" data-tab="software">
+          <span class="nav-icon">📦</span><span class="nav-label">软件管理</span>
+        </button>
       </div>
       <div class="nav-divider"></div>
       <div class="nav-group">
@@ -463,6 +466,51 @@
           <div style="font-size:3rem">💻</div>
           <p>点击「开始扫描」获取设备完整状态报告</p>
           <p style="font-size:.82rem;color:var(--text3)">扫描项目：CPU · 内存 · 磁盘 · 网络 · 进程 · 环境 · 安全</p>
+        </div>
+      </div>
+
+      <!-- ========== 软件管理 ========== -->
+      <div id="software" class="tab hidden">
+        <div class="tab-header">
+          <h2>📦 软件管理</h2>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button id="softwareScanBtn" class="btn btn-primary btn-sm">🔍 一键扫描</button>
+            <button id="selfUninstallBtn" class="btn btn-danger btn-sm">🗑 卸载 GADA 自身</button>
+          </div>
+        </div>
+
+        <div id="softwareLoading" class="search-loading hidden">
+          <div class="spinner"></div><span>正在扫描所有软件，请稍候（约10-30秒）...</span>
+        </div>
+
+        <div id="softwarePlaceholder" class="device-placeholder">
+          <div style="font-size:3rem">📦</div>
+          <p>点击「一键扫描」检测设备上所有已安装的软件与环境</p>
+          <p style="font-size:.82rem;color:var(--text3)">扫描范围：开发环境工具 · APT包 · Snap包 · npm全局包 · pip包 · GADA项目</p>
+        </div>
+
+        <div id="softwareResult" style="display:none">
+          <!-- 汇总 -->
+          <div id="softwareSummary" class="software-summary"></div>
+
+          <!-- 分类 Tab -->
+          <div class="software-tabs">
+            <button class="sw-tab active" data-sw="env">🛠️ 开发环境</button>
+            <button class="sw-tab" data-sw="apt">📦 APT 包</button>
+            <button class="sw-tab" data-sw="snap">🔵 Snap</button>
+            <button class="sw-tab" data-sw="npm">🟩 npm 全局</button>
+            <button class="sw-tab" data-sw="pip">🐍 pip 包</button>
+            <button class="sw-tab" data-sw="gada">🚀 GADA 项目</button>
+          </div>
+
+          <!-- 搜索框 -->
+          <div style="margin:.75rem 0;display:flex;gap:.5rem">
+            <input id="softwareSearch" type="text" class="input" placeholder="搜索名称..." style="max-width:300px">
+            <span id="softwareCount" style="align-self:center;color:var(--text3);font-size:.85rem"></span>
+          </div>
+
+          <!-- 列表 -->
+          <div id="softwareList"></div>
         </div>
       </div>
 

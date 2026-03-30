@@ -878,6 +878,9 @@ function init() {
   document.querySelector('[data-tab="device"]').addEventListener('click', () => {
     if (!window._deviceInited) { initDevice(); window._deviceInited = true; }
   });
+  document.querySelector('[data-tab="software"]').addEventListener('click', () => {
+    if (!window._softwareInited) { initSoftware(); window._softwareInited = true; }
+  });
 
   console.log('🚀 GADA initialized');
 }
@@ -1727,4 +1730,194 @@ function detailSection(title, rows) {
         <tbody>${rows.map(([k,v]) => `<tr><td class="dk">${k}</td><td class="dv">${v||'-'}</td></tr>`).join('')}</tbody>
       </table>
     </div></div>`;
+}
+// ============================================
+// 软件管理
+// ============================================
+let softwareData = null;
+let currentSwTab = 'env';
+
+function initSoftware() {
+  $('#softwareScanBtn').addEventListener('click', doSoftwareScan);
+  $('#selfUninstallBtn').addEventListener('click', doSelfUninstall);
+  $('#softwareSearch').addEventListener('input', renderSoftwareList);
+  $$('.sw-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.sw-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentSwTab = btn.dataset.sw;
+      renderSoftwareList();
+    });
+  });
+}
+
+async function doSoftwareScan() {
+  const loading = $('#softwareLoading');
+  const result = $('#softwareResult');
+  const placeholder = $('#softwarePlaceholder');
+  show(loading); hide(result); hide(placeholder);
+  $('#softwareScanBtn').disabled = true;
+  $('#softwareScanBtn').textContent = '扫描中...';
+  try {
+    const res = await api('/software/scan');
+    softwareData = res.data;
+    renderSoftwareSummary(softwareData);
+    renderSoftwareList();
+    hide(loading); show(result);
+    toast('扫描完成，耗时 ' + softwareData.scan_duration_ms + 'ms', 'ok');
+  } catch (err) {
+    hide(loading); show(placeholder);
+    toast('扫描失败: ' + err.message, 'err');
+  } finally {
+    $('#softwareScanBtn').disabled = false;
+    $('#softwareScanBtn').textContent = '🔍 一键扫描';
+  }
+}
+
+function renderSoftwareSummary(data) {
+  const s = data.summary;
+  $('#softwareSummary').innerHTML = `
+    <div class="software-summary-cards">
+      <div class="sw-sum-card" onclick="switchSwTab('env')"><div class="sw-sum-num">${s.env_tools}</div><div class="sw-sum-label">🛠️ 开发环境工具</div></div>
+      <div class="sw-sum-card" onclick="switchSwTab('apt')"><div class="sw-sum-num">${s.apt_packages}</div><div class="sw-sum-label">📦 APT 手动安装包</div></div>
+      <div class="sw-sum-card" onclick="switchSwTab('snap')"><div class="sw-sum-num">${s.snap_packages}</div><div class="sw-sum-label">🔵 Snap 包</div></div>
+      <div class="sw-sum-card" onclick="switchSwTab('npm')"><div class="sw-sum-num">${s.npm_global}</div><div class="sw-sum-label">🟩 npm 全局包</div></div>
+      <div class="sw-sum-card" onclick="switchSwTab('pip')"><div class="sw-sum-num">${s.pip_packages}</div><div class="sw-sum-label">🐍 pip 包</div></div>
+      <div class="sw-sum-card" onclick="switchSwTab('gada')"><div class="sw-sum-num">${s.gada_projects}</div><div class="sw-sum-label">🚀 GADA 项目</div></div>
+    </div>
+    <div style="font-size:.8rem;color:var(--text3);margin-top:.5rem">扫描时间: ${data.scanned_at} · 耗时 ${data.scan_duration_ms}ms</div>`;
+}
+
+function switchSwTab(tab) {
+  $$('.sw-tab').forEach(b => { b.classList.toggle('active', b.dataset.sw === tab); });
+  currentSwTab = tab;
+  renderSoftwareList();
+}
+
+function renderSoftwareList() {
+  if (!softwareData) return;
+  const q = ($('#softwareSearch').value || '').toLowerCase();
+  const el = $('#softwareList');
+  const count = $('#softwareCount');
+
+  let items = [];
+  const tab = currentSwTab;
+
+  if (tab === 'env') items = softwareData.env_tools || [];
+  else if (tab === 'apt') items = softwareData.apt_packages || [];
+  else if (tab === 'snap') items = softwareData.snap_packages || [];
+  else if (tab === 'npm') items = softwareData.npm_global || [];
+  else if (tab === 'pip') items = softwareData.pip_packages || [];
+  else if (tab === 'gada') items = softwareData.gada_projects || [];
+
+  if (q) items = items.filter(i => (i.name||'').toLowerCase().includes(q) || (i.description||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+  count.textContent = `共 ${items.length} 项`;
+
+  if (items.length === 0) {
+    el.innerHTML = '<p style="color:var(--text3);padding:2rem;text-align:center">暂无数据</p>';
+    return;
+  }
+
+  if (tab === 'env') {
+    // 按 category 分组
+    const groups = {};
+    items.forEach(i => {
+      if (!groups[i.category]) groups[i.category] = [];
+      groups[i.category].push(i);
+    });
+    el.innerHTML = Object.entries(groups).map(([cat, tools]) => `
+      <div class="sw-group">
+        <div class="sw-group-title">${cat}</div>
+        ${tools.map(t => swEnvCard(t)).join('')}
+      </div>`).join('');
+  } else if (tab === 'gada') {
+    el.innerHTML = items.map(p => `
+      <div class="sw-item">
+        <div class="sw-item-info">
+          <span class="sw-item-name">${p.name}</span>
+          <span class="sw-item-ver">${p.type || '-'}</span>
+          <span class="sw-item-path">${p.path || '-'}</span>
+        </div>
+        <div class="sw-item-actions">
+          <span class="tag">${p.status || '-'}</span>
+          <span style="font-size:.78rem;color:var(--text3)">在项目管理页卸载</span>
+        </div>
+      </div>`).join('');
+  } else {
+    el.innerHTML = `
+      <div class="sw-table-wrap">
+        <table class="search-table">
+          <thead><tr><th>名称</th><th>版本</th>${tab==='apt'?'<th>说明</th>':''}<th>操作</th></tr></thead>
+          <tbody>${items.map(i => `
+            <tr>
+              <td><span class="sw-item-name">${i.name}</span></td>
+              <td style="font-size:.82rem;color:var(--text3)">${i.version||'-'}</td>
+              ${tab==='apt'?`<td style="font-size:.78rem;color:var(--text3);max-width:300px">${i.description||''}</td>`:''}
+              <td>
+                <button class="btn btn-danger btn-sm" onclick="uninstallSoftwareItem('${i.manager}','${i.name}','${i.apt_package||i.name}','${(i.uninstall_cmd||'').replace(/'/g,"\'")}')">
+                  🗑 卸载
+                </button>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+}
+
+function swEnvCard(t) {
+  return `
+    <div class="sw-env-card">
+      <div class="sw-env-info">
+        <span class="sw-item-name">${t.name}</span>
+        <span class="sw-item-ver">${t.version ? t.version.split(' ').slice(0,3).join(' ') : '未安装'}</span>
+        <span class="sw-item-path">${t.path || ''}</span>
+      </div>
+      <div class="sw-env-actions">
+        <span class="tag">${t.install_manager || 'system'}</span>
+        <button class="btn btn-danger btn-sm" onclick="uninstallSoftwareItem('${t.install_manager}','${t.id}','${t.apt_package||t.id}','${(t.uninstall_hint||'').replace(/'/g,"\\'")}')">🗑 卸载</button>
+      </div>
+    </div>`;
+}
+
+async function uninstallSoftwareItem(manager, name, apt_package, uninstall_cmd) {
+  const PROTECTED = ['bash','apt','dpkg','sudo','coreutils','systemd','ssh','node','npm','git'];
+  if (PROTECTED.includes(name)) {
+    toast(`「${name}」是关键组件，不建议卸载`, 'warn');
+    return;
+  }
+  if (!confirm(`确定卸载「${name}」？\n卸载后可能需要重新安装才能恢复。\n\n执行命令: ${uninstall_cmd}`)) return;
+  try {
+    toast(`正在卸载 ${name}...`, 'info');
+    const res = await api('/software/uninstall', {
+      method: 'POST',
+      body: JSON.stringify({ manager, name, apt_package, uninstall_cmd }),
+    });
+    if (res.success) {
+      toast(`✅ ${name} 卸载完成`, 'ok');
+      doSoftwareScan(); // 重新扫描
+    } else {
+      toast(res.data?.message || '卸载失败', 'warn');
+    }
+  } catch (err) {
+    toast('卸载失败: ' + err.message, 'err');
+  }
+}
+
+async function doSelfUninstall() {
+  const keepData = confirm('是否保留 workspace 数据（已部署的项目文件）？\n\n点「确定」= 保留数据\n点「取消」= 彻底删除所有数据');
+  if (!confirm(`⚠️ 即将卸载 GADA 自身！\n\n这将：\n• 停止所有运行中的项目\n• 删除数据库和日志\n${keepData ? '• 保留 workspace 项目文件' : '• 删除 workspace 所有项目文件'}\n• 服务将停止运行\n\n确认卸载？`)) return;
+  try {
+    toast('开始卸载 GADA...', 'warn');
+    const res = await api('/software/self-uninstall', {
+      method: 'POST',
+      body: JSON.stringify({ keep_data: keepData }),
+    });
+    if (res.success) {
+      const steps = res.data.steps || [];
+      alert('GADA 已卸载完成！\n\n' + steps.join('\n') + '\n\n主程序目录请手动删除：\n' + res.data.gada_dir);
+    }
+  } catch (_) {
+    alert('GADA 已卸载，服务已停止。请手动删除主程序目录。');
+  }
 }
