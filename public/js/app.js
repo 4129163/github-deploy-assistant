@@ -870,6 +870,7 @@ function init() {
 
   // 加载近期项目（首页展示）
   loadRecentProjects();
+  initRecommend();
 
   console.log('🚀 GADA initialized');
 }
@@ -1130,4 +1131,114 @@ async function quickLaunch(id) {
   $$('.tab').forEach(t => { t.classList.remove('active'); hide(t); });
   show($('#projects')); $('#projects').classList.add('active');
   await loadProjects();
+}
+
+// ============================================
+// 项目推荐
+// ============================================
+const RECOMMEND_DATA = {
+  hot: [
+    { name: 'ollama', desc: '本地运行大语言模型，支持 Llama/Mistral 等', url: 'https://github.com/ollama/ollama', stars: '80k+', lang: 'Go' },
+    { name: 'stable-diffusion-webui', desc: 'AI 图片生成神器，本地运行 SD 模型', url: 'https://github.com/AUTOMATIC1111/stable-diffusion-webui', stars: '140k+', lang: 'Python' },
+    { name: 'ChatGPT-Next-Web', desc: '一键部署私人 ChatGPT 网页应用', url: 'https://github.com/ChatGPTNextWeb/ChatGPT-Next-Web', stars: '75k+', lang: 'TypeScript' },
+    { name: 'lobe-chat', desc: '开源现代化 AI 聊天框架，支持多模型', url: 'https://github.com/lobehub/lobe-chat', stars: '45k+', lang: 'TypeScript' },
+    { name: 'gpt4free', desc: '免费使用各种 AI 模型的聚合接口', url: 'https://github.com/xtekky/gpt4free', stars: '62k+', lang: 'Python' },
+    { name: 'Langchain-Chatchat', desc: '基于 LangChain 的本地知识库问答', url: 'https://github.com/chatchat-space/Langchain-Chatchat', stars: '32k+', lang: 'Python' },
+    { name: 'open-webui', desc: 'Ollama 的好看前端，像 ChatGPT 一样用本地模型', url: 'https://github.com/open-webui/open-webui', stars: '45k+', lang: 'Svelte' },
+    { name: 'vaultwarden', desc: '轻量级自托管密码管理器 Bitwarden 服务端', url: 'https://github.com/dani-garcia/vaultwarden', stars: '38k+', lang: 'Rust' },
+    { name: 'n8n', desc: '可视化工作流自动化工具，自托管 Zapier', url: 'https://github.com/n8n-io/n8n', stars: '48k+', lang: 'TypeScript' },
+    { name: 'immich', desc: '自托管照片视频备份管理，替代 Google Photos', url: 'https://github.com/immich-app/immich', stars: '50k+', lang: 'TypeScript' },
+  ],
+  fun: [
+    { name: 'shan-shui-inf', desc: '用算法生成无限水墨山水画', url: 'https://github.com/LingDong-/shan-shui-inf', stars: '5k+', lang: 'JavaScript' },
+    { name: 'cmatrix', desc: '终端里跑「黑客帝国」数字瀑布动画', url: 'https://github.com/abishekvashok/cmatrix', stars: '4k+', lang: 'C' },
+    { name: 'gameboy.live', desc: '在浏览器里直接玩 GameBoy 游戏，支持联机', url: 'https://github.com/HFO4/gameboy.live', stars: '4k+', lang: 'Go' },
+    { name: 'rembg', desc: 'AI 一键抠图，完全本地运行', url: 'https://github.com/danielgatis/rembg', stars: '16k+', lang: 'Python' },
+    { name: 'musicn', desc: '命令行下载高品质音乐', url: 'https://github.com/zonemeen/musicn', stars: '4k+', lang: 'JavaScript' },
+    { name: 'OpenVoice', desc: 'AI 声音克隆，复刻任意人声', url: 'https://github.com/myshell-ai/OpenVoice', stars: '29k+', lang: 'Python' },
+    { name: 'bark', desc: 'AI 文字转超真实语音，支持大笑/哭泣等情绪', url: 'https://github.com/suno-ai/bark', stars: '36k+', lang: 'Python' },
+    { name: 'LLaVA', desc: '给 AI 看图说话，本地多模态大模型', url: 'https://github.com/haotian-liu/LLaVA', stars: '20k+', lang: 'Python' },
+    { name: 'screenshot-to-code', desc: '截图变代码，粘贴设计稿直接生成网页', url: 'https://github.com/abi/screenshot-to-code', stars: '57k+', lang: 'Python' },
+    { name: 'ComfyUI', desc: 'SD 最强节点式工作流界面，玩法无限', url: 'https://github.com/comfyanonymous/ComfyUI', stars: '55k+', lang: 'Python' },
+  ],
+  tool: [
+    { name: 'FileBrowser', desc: '网页版文件管理器，自托管私有网盘', url: 'https://github.com/filebrowser/filebrowser', stars: '26k+', lang: 'Go' },
+    { name: 'uptime-kuma', desc: '好看的自托管服务监控面板', url: 'https://github.com/louislam/uptime-kuma', stars: '55k+', lang: 'JavaScript' },
+    { name: 'photoprism', desc: 'AI 驱动的私人相册，自动分类整理', url: 'https://github.com/photoprism/photoprism', stars: '35k+', lang: 'Go' },
+    { name: 'Stirling-PDF', desc: '自托管 PDF 全能处理工具', url: 'https://github.com/Stirling-Tools/Stirling-PDF', stars: '46k+', lang: 'Java' },
+    { name: 'glances', desc: '跨平台系统监控工具，支持网页查看', url: 'https://github.com/nicolargo/glances', stars: '26k+', lang: 'Python' },
+    { name: 'homer', desc: '简洁的自托管服务导航首页', url: 'https://github.com/bastienwirtz/homer', stars: '9k+', lang: 'Vue' },
+    { name: 'linkding', desc: '极简自托管书签管理器', url: 'https://github.com/sissbruecker/linkding', stars: '6k+', lang: 'Python' },
+    { name: 'memos', desc: '轻量自托管碎片笔记，像 Twitter 一样记录想法', url: 'https://github.com/usememos/memos', stars: '30k+', lang: 'Go' },
+    { name: 'Docmost', desc: '开源 Notion 替代品，自托管团队 Wiki', url: 'https://github.com/docmost/docmost', stars: '10k+', lang: 'TypeScript' },
+    { name: 'actual', desc: '自托管个人财务记账软件', url: 'https://github.com/actualbudget/actual', stars: '15k+', lang: 'JavaScript' },
+  ],
+  ai: [
+    { name: 'LocalAI', desc: '本地运行 AI 模型的 OpenAI 兼容 API', url: 'https://github.com/mudler/LocalAI', stars: '23k+', lang: 'Go' },
+    { name: 'text-generation-webui', desc: '本地大模型聊天 WebUI，支持几乎所有模型格式', url: 'https://github.com/oobabooga/text-generation-webui', stars: '40k+', lang: 'Python' },
+    { name: 'llama.cpp', desc: 'CPU 上跑大模型，量化推理极致优化', url: 'https://github.com/ggerganov/llama.cpp', stars: '65k+', lang: 'C++' },
+    { name: 'privateGPT', desc: '本地知识库问答，100% 离线，数据不出门', url: 'https://github.com/zylon-ai/private-gpt', stars: '53k+', lang: 'Python' },
+    { name: 'AnythingLLM', desc: '一站式本地 AI 知识库管理工具', url: 'https://github.com/Mintplex-Labs/anything-llm', stars: '25k+', lang: 'JavaScript' },
+    { name: 'Flowise', desc: '拖拽式构建 AI 工作流，零代码搭 LLM 应用', url: 'https://github.com/FlowiseAI/Flowise', stars: '32k+', lang: 'JavaScript' },
+    { name: 'Dify', desc: '开源 LLM 应用开发平台，快速构建 AI 产品', url: 'https://github.com/langgenius/dify', stars: '55k+', lang: 'Python' },
+    { name: 'SillyTavern', desc: 'AI 角色扮演聊天前端，支持各种本地/云端模型', url: 'https://github.com/SillyTavern/SillyTavern', stars: '9k+', lang: 'JavaScript' },
+    { name: 'Jan', desc: '桌面端本地 AI 助手，像 ChatGPT 一样好用', url: 'https://github.com/janhq/jan', stars: '23k+', lang: 'TypeScript' },
+    { name: 'MaxKB', desc: '基于大模型的知识库问答系统，开箱即用', url: 'https://github.com/1Panel-dev/MaxKB', stars: '12k+', lang: 'Python' },
+  ],
+};
+
+let currentRecCat = 'hot';
+let recShuffleOffset = 0;
+const REC_PAGE_SIZE = 6;
+
+function renderRecommend() {
+  const list = $('#recommendList');
+  if (!list) return;
+  const all = RECOMMEND_DATA[currentRecCat] || [];
+  const start = (recShuffleOffset * REC_PAGE_SIZE) % all.length;
+  const items = [];
+  for (let i = 0; i < REC_PAGE_SIZE; i++) {
+    items.push(all[(start + i) % all.length]);
+  }
+  const langColor = { Python:'#3572A5', JavaScript:'#f1e05a', TypeScript:'#2b7489', Go:'#00ADD8', Rust:'#dea584', 'C++':'#f34b7d', C:'#555555', Java:'#b07219', Svelte:'#ff3e00', Vue:'#41b883' };
+  list.innerHTML = items.map(p => `
+    <div class="rec-card" onclick="fillUrl('${p.url}')" title="点击填入地址">
+      <div class="rec-top">
+        <span class="rec-name">${p.name}</span>
+        <span class="rec-stars">⭐ ${p.stars}</span>
+      </div>
+      <div class="rec-desc">${p.desc}</div>
+      <div class="rec-footer">
+        <span class="rec-lang" style="background:${langColor[p.lang] || '#555'}22;color:${langColor[p.lang] || '#888'}">${p.lang}</span>
+        <span class="rec-action">点击部署 →</span>
+      </div>
+    </div>`).join('');
+}
+
+function fillUrl(url) {
+  const input = $('#repoUrl');
+  if (!input) return;
+  input.value = url;
+  input.focus();
+  const btn = $('#clearUrlBtn');
+  if (btn) btn.classList.remove('hidden');
+  toast('已填入地址，点击「开始分析」部署', 'ok');
+}
+
+function initRecommend() {
+  renderRecommend();
+  $$('.rec-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.rec-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentRecCat = btn.dataset.cat;
+      recShuffleOffset = 0;
+      renderRecommend();
+    });
+  });
+  const shuffleBtn = $('#recShuffleBtn');
+  if (shuffleBtn) shuffleBtn.addEventListener('click', () => {
+    recShuffleOffset++;
+    renderRecommend();
+  });
 }

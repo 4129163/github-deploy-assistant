@@ -90,6 +90,20 @@
             <button class="example-chip" data-url="https://github.com/Significant-Gravitas/AutoGPT">AutoGPT</button>
           </div>
 
+          <!-- 项目推荐区 -->
+          <div class="recommend-section">
+            <div class="recommend-header">
+              <div class="recommend-tabs">
+                <button class="rec-tab active" data-cat="hot">🔥 热门</button>
+                <button class="rec-tab" data-cat="fun">🎮 有趣好玩</button>
+                <button class="rec-tab" data-cat="tool">🛠️ 实用工具</button>
+                <button class="rec-tab" data-cat="ai">🤖 AI 相关</button>
+              </div>
+              <button id="recShuffleBtn" class="btn btn-ghost btn-sm" title="换一批">🔀 换一批</button>
+            </div>
+            <div id="recommendList" class="recommend-grid"></div>
+          </div>
+
           <!-- 近期项目（动态加载） -->
           <div id="recentProjectsSection" class="recent-section hidden">
             <h3 class="section-title">📌 已安装的项目</h3>
