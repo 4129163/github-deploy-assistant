@@ -875,6 +875,9 @@ function init() {
   document.querySelector('[data-tab="search"]').addEventListener('click', () => {
     if (!window._searchInited) { initSearch(); window._searchInited = true; }
   });
+  document.querySelector('[data-tab="device"]').addEventListener('click', () => {
+    if (!window._deviceInited) { initDevice(); window._deviceInited = true; }
+  });
 
   console.log('🚀 GADA initialized');
 }
@@ -1449,4 +1452,230 @@ async function deleteHistoryRecord(id) {
     toast('已删除', 'ok');
     loadSearchHistory();
   } catch (err) { toast('删除失败: ' + err.message, 'err'); }
+}
+// ============================================
+// 设备状态扫描
+// ============================================
+let deviceScanData = null;
+
+function initDevice() {
+  $('#deviceScanBtn').addEventListener('click', () => doDeviceScan(false));
+  $('#deviceScanWithSpeedBtn').addEventListener('click', () => doDeviceScan(true));
+  $('#deviceSpeedBtn').addEventListener('click', doSpeedTest);
+}
+
+async function doDeviceScan(withSpeed) {
+  const loading = $('#deviceLoading');
+  const result = $('#deviceResult');
+  const placeholder = $('#devicePlaceholder');
+  const loadingText = $('#deviceLoadingText');
+
+  loadingText.textContent = withSpeed ? '正在扫描设备并测速（测速约需10秒）...' : '正在扫描设备，请稍候...';
+  show(loading); hide(result); hide(placeholder);
+  ['#deviceScanBtn','#deviceScanWithSpeedBtn','#deviceSpeedBtn'].forEach(id => $(id).disabled = true);
+
+  try {
+    const res = await api('/device/scan' + (withSpeed ? '?speed=1' : ''));
+    deviceScanData = res.data;
+    renderDeviceScan(deviceScanData);
+    hide(loading); show(result);
+    toast('扫描完成，耗时 ' + deviceScanData.scan_duration_ms + 'ms', 'ok');
+  } catch (err) {
+    hide(loading); show(placeholder);
+    toast('扫描失败: ' + err.message, 'err');
+  } finally {
+    ['#deviceScanBtn','#deviceScanWithSpeedBtn','#deviceSpeedBtn'].forEach(id => $(id).disabled = false);
+  }
+}
+
+async function doSpeedTest() {
+  const btn = $('#deviceSpeedBtn');
+  btn.disabled = true; btn.textContent = '测速中...';
+  try {
+    const res = await api('/device/speedtest');
+    const d = res.data;
+    const msg = d.download_mbps ? `下载: ${d.download_mbps} Mbps` : '';
+    const lat = d.latency_ms ? `延迟: ${d.latency_ms}ms` : '';
+    toast('测速完成 — ' + [msg, lat].filter(Boolean).join(' | '), 'ok');
+    if (deviceScanData) {
+      deviceScanData.network_speed = d;
+      renderNetworkSpeed(d);
+    }
+  } catch (err) {
+    toast('测速失败: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ 测速';
+  }
+}
+
+function renderDeviceScan(data) {
+  renderDeviceTips(data.optimization_tips || []);
+  renderDeviceOverview(data);
+  renderDeviceDetails(data);
+}
+
+function renderDeviceTips(tips) {
+  const el = $('#deviceTips');
+  if (!tips.length) { el.innerHTML = ''; return; }
+  const levelColor = { error:'#ef4444', warn:'#eab308', info:'#3b82f6', ok:'#22c55e' };
+  const levelIcon = { error:'❌', warn:'⚠️', info:'ℹ️', ok:'✅' };
+  el.innerHTML = `<div class="device-tips">${tips.map(t =>
+    `<div class="device-tip" style="border-left:3px solid ${levelColor[t.level]||'#888'}">
+      <span>${levelIcon[t.level]||'•'}</span>
+      <span>${t.message}</span>
+    </div>`).join('')}</div>`;
+}
+
+function pct(v) {
+  const color = v >= 90 ? '#ef4444' : v >= 75 ? '#eab308' : '#22c55e';
+  return `<div class="device-pct-bar"><div class="device-pct-fill" style="width:${v}%;background:${color}"></div></div><span style="color:${color};font-weight:700">${v}%</span>`;
+}
+
+function renderDeviceOverview(data) {
+  const el = $('#deviceOverview');
+  const s = data.system || {};
+  const cpu = data.cpu || {};
+  const mem = data.memory || {};
+  const disk = (data.disk?.disks || [])[0] || {};
+  const net = data.network || {};
+  const spd = data.network_speed || {};
+
+  el.innerHTML = `
+    <div class="dov-card">
+      <div class="dov-icon">🖥️</div>
+      <div class="dov-title">系统</div>
+      <div class="dov-val">${s.os || '-'}</div>
+      <div class="dov-sub">${s.virtualization || ''} · 运行 ${s.uptime || '-'}</div>
+    </div>
+    <div class="dov-card">
+      <div class="dov-icon">⚙️</div>
+      <div class="dov-title">CPU</div>
+      <div class="dov-val">${cpu.cores || '-'} 核心</div>
+      <div class="dov-sub">${pct(cpu.usage_percent || 0)} 使用率</div>
+      <div class="dov-sub">负载 ${cpu.load_1m || 0} / ${cpu.load_5m || 0} / ${cpu.load_15m || 0}</div>
+    </div>
+    <div class="dov-card">
+      <div class="dov-icon">🧠</div>
+      <div class="dov-title">内存</div>
+      <div class="dov-val">${mem.total || '-'}</div>
+      <div class="dov-sub">${pct(mem.used_percent || 0)} 已用 ${mem.used || '-'}</div>
+      <div class="dov-sub">可用 ${mem.available || '-'}</div>
+    </div>
+    <div class="dov-card">
+      <div class="dov-icon">💾</div>
+      <div class="dov-title">磁盘</div>
+      <div class="dov-val">${disk.total || '-'}</div>
+      <div class="dov-sub">${pct(disk.used_percent || 0)} 已用 ${disk.used || '-'}</div>
+      <div class="dov-sub">挂载点 ${disk.mount || '-'}</div>
+    </div>
+    <div class="dov-card">
+      <div class="dov-icon">🌐</div>
+      <div class="dov-title">网络</div>
+      <div class="dov-val">${net.public_ip || '-'}</div>
+      <div class="dov-sub">${(net.interfaces||[]).map(i=>i.address).filter(Boolean).join(' / ')}</div>
+      <div class="dov-sub">DNS: ${(net.dns_servers||[]).join(', ')||'-'}</div>
+    </div>
+    <div class="dov-card" id="speedCard">
+      <div class="dov-icon">⚡</div>
+      <div class="dov-title">网速</div>
+      ${renderNetworkSpeedHTML(spd)}
+    </div>`;
+}
+
+function renderNetworkSpeedHTML(spd) {
+  if (spd.status === 'skipped') return `<div class="dov-val" style="font-size:.85rem">未测试</div><div class="dov-sub">点击「⚡ 测速」</div>`;
+  if (spd.status === 'ok') return `<div class="dov-val">${spd.download_mbps ? spd.download_mbps + ' Mbps' : '-'}</div><div class="dov-sub">延迟 ${spd.latency_ms || '-'} ms</div>`;
+  return `<div class="dov-val" style="color:#eab308">测速中/失败</div>`;
+}
+
+function renderNetworkSpeed(spd) {
+  const card = $('#speedCard');
+  if (card) card.innerHTML = `<div class="dov-icon">⚡</div><div class="dov-title">网速</div>${renderNetworkSpeedHTML(spd)}`;
+}
+
+function renderDeviceDetails(data) {
+  const el = $('#deviceDetails');
+  const sections = [];
+
+  // 系统详情
+  const s = data.system || {};
+  sections.push(detailSection('🖥️ 系统详情', [
+    ['主机名', s.hostname],['操作系统', s.os],['内核版本', s.kernel],
+    ['架构', s.arch],['虚拟化', s.virtualization],
+    ['Node.js', s.node_version],['启动时间', s.boot_time],['运行时长', s.uptime],
+  ]));
+
+  // CPU
+  const cpu = data.cpu || {};
+  sections.push(detailSection('⚙️ CPU 详情', [
+    ['型号', cpu.model],['核心数', cpu.cores],['主频', cpu.speed_mhz ? cpu.speed_mhz + ' MHz' : '-'],
+    ['当前使用率', cpu.usage_percent + '%'],['温度', cpu.temperature],
+    ['1分钟负载', cpu.load_1m],['5分钟负载', cpu.load_5m],['15分钟负载', cpu.load_15m],
+  ]));
+
+  // 内存
+  const mem = data.memory || {};
+  sections.push(detailSection('🧠 内存详情', [
+    ['总内存', mem.total],['已使用', mem.used + ' (' + mem.used_percent + '%)'],
+    ['可用', mem.available],['缓存/缓冲', mem.buff_cache],
+    ['Swap总量', mem.swap_total],['Swap已用', mem.swap_used + ' (' + mem.swap_percent + '%)'],
+  ]));
+
+  // 磁盘
+  const disks = data.disk?.disks || [];
+  sections.push(`<div class="detail-section">
+    <div class="detail-title">💾 磁盘详情</div>
+    <div class="detail-body">
+      <table class="search-table"><thead><tr><th>挂载点</th><th>总量</th><th>已用</th><th>可用</th><th>使用率</th></tr></thead>
+      <tbody>${disks.map(d => `<tr><td>${d.mount}</td><td>${d.total}</td><td>${d.used}</td><td>${d.available}</td><td>${pct(d.used_percent)}</td></tr>`).join('')}</tbody>
+      </table>
+    </div></div>`);
+
+  // 网络
+  const net = data.network || {};
+  const traffic = net.traffic || [];
+  sections.push(`<div class="detail-section">
+    <div class="detail-title">🌐 网络详情</div>
+    <div class="detail-body">
+      <table class="search-table"><thead><tr><th>接口</th><th>接收</th><th>接收包</th><th>发送</th><th>发送包</th></tr></thead>
+      <tbody>${traffic.map(t => `<tr><td>${t.interface}</td><td>${t.rx_bytes}</td><td>${t.rx_packets}</td><td>${t.tx_bytes}</td><td>${t.tx_packets}</td></tr>`).join('')}</tbody>
+      </table>
+    </div></div>`);
+
+  // Top 进程
+  const procs = data.processes || {};
+  sections.push(`<div class="detail-section">
+    <div class="detail-title">📊 进程 Top 10（CPU）<span style="float:right;font-size:.8rem;color:var(--text3)">总进程: ${procs.total_processes || 0}</span></div>
+    <div class="detail-body">
+      <table class="search-table"><thead><tr><th>PID</th><th>CPU</th><th>内存</th><th>命令</th></tr></thead>
+      <tbody>${(procs.top_cpu||[]).map(p => `<tr><td>${p.pid}</td><td>${p.cpu}</td><td>${p.mem}</td><td style="font-size:.8rem;color:var(--text3)">${p.command}</td></tr>`).join('')}</tbody>
+      </table>
+    </div></div>`);
+
+  // 环境
+  const env = data.env || {};
+  const envRows = Object.entries(env).map(([k, v]) => [
+    k, v.installed ? ('✅ ' + (v.version||'').split('\n')[0]) : '❌ 未安装'
+  ]);
+  sections.push(detailSection('🛠️ 环境工具', envRows));
+
+  // 安全
+  const sec = data.security || {};
+  sections.push(detailSection('🔒 安全信息', [
+    ['防火墙', sec.firewall],
+    ['开放端口', (sec.open_ports||[]).join(', ') || '无'],
+    ['最近登录', (sec.last_logins||[]).join(' | ')],
+  ]));
+
+  el.innerHTML = sections.join('');
+}
+
+function detailSection(title, rows) {
+  return `<div class="detail-section">
+    <div class="detail-title">${title}</div>
+    <div class="detail-body">
+      <table class="detail-table">
+        <tbody>${rows.map(([k,v]) => `<tr><td class="dk">${k}</td><td class="dv">${v||'-'}</td></tr>`).join('')}</tbody>
+      </table>
+    </div></div>`;
 }

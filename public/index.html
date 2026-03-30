@@ -41,6 +41,9 @@
         <button class="nav-item" data-tab="search">
           <span class="nav-icon">🌐</span><span class="nav-label">搜索项目</span>
         </button>
+        <button class="nav-item" data-tab="device">
+          <span class="nav-icon">💻</span><span class="nav-label">设备状态</span>
+        </button>
       </div>
       <div class="nav-divider"></div>
       <div class="nav-group">
@@ -429,6 +432,41 @@
         </div>
         <div id="searchHistoryList" class="search-history-list"></div>
       </div>
+
+      <!-- ========== 设备状态 ========== -->
+      <div id="device" class="tab hidden">
+        <div class="tab-header">
+          <h2>💻 设备状态</h2>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button id="deviceScanBtn" class="btn btn-primary btn-sm">🔍 开始扫描</button>
+            <button id="deviceSpeedBtn" class="btn btn-secondary btn-sm">⚡ 测速</button>
+            <button id="deviceScanWithSpeedBtn" class="btn btn-secondary btn-sm">🔍+⚡ 扫描+测速</button>
+          </div>
+        </div>
+
+        <div id="deviceLoading" class="search-loading hidden">
+          <div class="spinner"></div><span id="deviceLoadingText">正在扫描设备，请稍候...</span>
+        </div>
+
+        <div id="deviceResult" style="display:none">
+          <!-- 优化建议 -->
+          <div id="deviceTips" class="device-tips-wrap"></div>
+
+          <!-- 概览卡片 -->
+          <div id="deviceOverview" class="device-overview-grid"></div>
+
+          <!-- 详细信息折叠区 -->
+          <div id="deviceDetails" class="device-details"></div>
+        </div>
+
+        <div id="devicePlaceholder" class="device-placeholder">
+          <div style="font-size:3rem">💻</div>
+          <p>点击「开始扫描」获取设备完整状态报告</p>
+          <p style="font-size:.82rem;color:var(--text3)">扫描项目：CPU · 内存 · 磁盘 · 网络 · 进程 · 环境 · 安全</p>
+        </div>
+      </div>
+
+      <!-- ========== AI 设置 ========== -->
       <div id="ai" class="tab hidden">
         <!-- 一键粘贴区 -->
         <div class="quick-paste-card">

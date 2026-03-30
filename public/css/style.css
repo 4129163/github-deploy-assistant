@@ -658,3 +658,59 @@ label .input { color: var(--text); }
 .history-meta { font-size: .78rem; color: var(--text3); }
 .history-item-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
 .history-save-path { font-size: .75rem; color: var(--text3); margin-top: .35rem; word-break: break-all; }
+
+/* ====== 设备状态页 ====== */
+.device-placeholder {
+  text-align: center; padding: 4rem 2rem; color: var(--text3);
+}
+.device-placeholder p { margin: .5rem 0; }
+
+.device-tips-wrap { margin-bottom: 1rem; }
+.device-tips { display: flex; flex-direction: column; gap: .4rem; }
+.device-tip {
+  display: flex; gap: .75rem; align-items: flex-start;
+  padding: .6rem 1rem; background: var(--bg2); border-radius: var(--radius-sm);
+  font-size: .87rem; color: var(--text1);
+}
+
+.device-overview-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: .85rem; margin-bottom: 1.5rem;
+}
+.dov-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1.1rem; display: flex; flex-direction: column; gap: .3rem;
+}
+.dov-icon { font-size: 1.4rem; }
+.dov-title { font-size: .78rem; color: var(--text3); text-transform: uppercase; letter-spacing: .05em; }
+.dov-val { font-size: 1.1rem; font-weight: 700; color: var(--text1); }
+.dov-sub { font-size: .8rem; color: var(--text2); display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+
+.device-pct-bar {
+  display: inline-block; width: 60px; height: 6px;
+  background: var(--border); border-radius: 3px; overflow: hidden; vertical-align: middle;
+}
+.device-pct-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+
+.device-details { display: flex; flex-direction: column; gap: .75rem; }
+.detail-section {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.detail-title {
+  padding: .6rem 1rem; background: var(--sidebar-bg);
+  font-weight: 600; font-size: .9rem; border-bottom: 1px solid var(--border);
+}
+.detail-body { padding: .5rem 0; overflow-x: auto; }
+.detail-table { width: 100%; border-collapse: collapse; }
+.detail-table .dk {
+  width: 150px; padding: .35rem 1rem; color: var(--text3); font-size: .84rem; white-space: nowrap;
+}
+.detail-table .dv { padding: .35rem 1rem; color: var(--text1); font-size: .84rem; }
+.detail-table tr:hover td { background: var(--primary-light); }
+
+@media (max-width: 900px) {
+  .device-overview-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .device-overview-grid { grid-template-columns: 1fr; }
+}
