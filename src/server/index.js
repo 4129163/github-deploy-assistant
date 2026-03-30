@@ -135,6 +135,8 @@ const deviceRoutes = require('../routes/device');
 app.use('/api/device', deviceRoutes);
 const softwareRoutes = require('../routes/software');
 app.use('/api/software', softwareRoutes);
+const envguideRoutes = require('../routes/envguide');
+app.use('/api/envguide', envguideRoutes);
 
 // 全身自检接口
 app.get('/api/selfcheck', async (req, res) => {

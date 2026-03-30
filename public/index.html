@@ -47,6 +47,9 @@
         <button class="nav-item" data-tab="software">
           <span class="nav-icon">📦</span><span class="nav-label">软件管理</span>
         </button>
+        <button class="nav-item" data-tab="envguide">
+          <span class="nav-icon">📚</span><span class="nav-label">环境指南</span>
+        </button>
       </div>
       <div class="nav-divider"></div>
       <div class="nav-group">
@@ -511,6 +514,38 @@
 
           <!-- 列表 -->
           <div id="softwareList"></div>
+        </div>
+      </div>
+
+      <!-- ========== 环境指南 ========== -->
+      <div id="envguide" class="tab hidden">
+        <div class="tab-header">
+          <h2>📚 环境指南</h2>
+          <p style="color:var(--text3);font-size:.85rem;margin:.25rem 0 0">市面上主流开发环境工具大全，含官网和小白向安装教程</p>
+        </div>
+
+        <!-- 搜索 + 分类过滤 -->
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+          <input id="envSearch" type="text" class="input" placeholder="搜索工具名称..." style="max-width:260px">
+          <div id="envCategoryFilter" style="display:flex;gap:.35rem;flex-wrap:wrap"></div>
+        </div>
+
+        <div id="envLoading" class="search-loading hidden">
+          <div class="spinner"></div><span>加载中...</span>
+        </div>
+
+        <!-- 工具列表（按分类分组） -->
+        <div id="envList"></div>
+
+        <!-- 教程模态框 -->
+        <div id="envTutorialModal" class="modal-overlay hidden">
+          <div class="modal-box" style="max-width:680px;max-height:85vh;overflow-y:auto">
+            <div class="modal-header">
+              <h3 id="tutorialTitle"></h3>
+              <button class="btn btn-ghost" onclick="closeEnvTutorial()">✕</button>
+            </div>
+            <div id="tutorialContent"></div>
+          </div>
         </div>
       </div>
 

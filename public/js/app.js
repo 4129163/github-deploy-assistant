@@ -881,6 +881,10 @@ function init() {
   document.querySelector('[data-tab="software"]').addEventListener('click', () => {
     if (!window._softwareInited) { initSoftware(); window._softwareInited = true; }
   });
+  document.querySelector('[data-tab="envguide"]').addEventListener('click', () => {
+    if (!window._envGuideInited) { initEnvGuide(); window._envGuideInited = true; }
+    $('#envSearch').addEventListener('input', renderEnvList);
+  });
 
   console.log('🚀 GADA initialized');
 }
@@ -1921,3 +1925,158 @@ async function doSelfUninstall() {
     alert('GADA 已卸载，服务已停止。请手动删除主程序目录。');
   }
 }
+// ============================================
+// 环境指南
+// ============================================
+let envGuideData = null;
+let envCategoryActive = 'all';
+
+async function initEnvGuide() {
+  show($('#envLoading'));
+  try {
+    const res = await api('/envguide/list');
+    envGuideData = res.data;
+    renderEnvCategories(res.data.categories);
+    renderEnvList();
+  } catch (err) {
+    toast('加载失败: ' + err.message, 'err');
+  } finally {
+    hide($('#envLoading'));
+  }
+}
+
+function renderEnvCategories(categories) {
+  const el = $('#envCategoryFilter');
+  el.innerHTML = `<button class="sw-tab active" data-cat="all" onclick="filterEnvCat('all',this)">全部</button>` +
+    categories.map(c =>
+      `<button class="sw-tab" data-cat="${c}" onclick="filterEnvCat('${c}',this)">${c}</button>`
+    ).join('');
+}
+
+function filterEnvCat(cat, btn) {
+  envCategoryActive = cat;
+  $$('#envCategoryFilter .sw-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEnvList();
+}
+
+function renderEnvList() {
+  if (!envGuideData) return;
+  const q = ($('#envSearch').value || '').toLowerCase();
+  const el = $('#envList');
+
+  let tools = envGuideData.tools;
+  if (envCategoryActive !== 'all') tools = tools.filter(t => t.category === envCategoryActive);
+  if (q) tools = tools.filter(t =>
+    t.name.toLowerCase().includes(q) ||
+    t.desc.toLowerCase().includes(q) ||
+    t.category.toLowerCase().includes(q)
+  );
+
+  if (tools.length === 0) {
+    el.innerHTML = '<p style="color:var(--text3);padding:2rem;text-align:center">没有找到匹配的工具</p>';
+    return;
+  }
+
+  // 按分类重新分组（只包含过滤后的）
+  const groups = {};
+  tools.forEach(t => {
+    if (!groups[t.category]) groups[t.category] = [];
+    groups[t.category].push(t);
+  });
+
+  el.innerHTML = Object.entries(groups).map(([cat, items]) =>
+    `<div class="envg-group">
+      <div class="sw-group-title">${cat} <span style="color:var(--text3);font-weight:400">(${items.length})</span></div>
+      <div class="envg-grid">${items.map(t => envToolCard(t)).join('')}</div>
+    </div>`
+  ).join('');
+}
+
+function envToolCard(t) {
+  const osTag = (t.os || []).map(o => `<span class="env-os-tag">${o}</span>`).join('');
+  return `
+    <div class="envg-card">
+      <div class="envg-card-top">
+        <span class="envg-icon">${t.icon}</span>
+        <div class="envg-info">
+          <div class="envg-name">${t.name}</div>
+          <div class="envg-cat">${t.category}</div>
+        </div>
+      </div>
+      <div class="envg-desc">${t.desc}</div>
+      <div class="envg-os">${osTag}</div>
+      <div class="envg-actions">
+        <a href="${t.website}" target="_blank" class="btn btn-ghost btn-sm">🌐 官网</a>
+        <button class="btn btn-primary btn-sm" onclick="showEnvTutorial('${t.id}')">📖 教程</button>
+      </div>
+    </div>`;
+}
+
+async function showEnvTutorial(id) {
+  const modal = $('#envTutorialModal');
+  const title = $('#tutorialTitle');
+  const content = $('#tutorialContent');
+
+  // 先从缓存取
+  const tool = (envGuideData?.tools || []).find(t => t.id === id);
+  if (!tool) return;
+
+  title.textContent = `${tool.icon} ${tool.name} 安装教程`;
+  content.innerHTML = renderTutorial(tool);
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+}
+
+function renderTutorial(tool) {
+  const steps = tool.tutorial?.steps || [];
+  const tips = tool.tutorial?.tips || [];
+
+  const stepsHTML = steps.map((s, i) => `
+    <div class="tut-step">
+      <div class="tut-step-num">${i + 1}</div>
+      <div class="tut-step-body">
+        <div class="tut-step-title">${s.title}</div>
+        <div class="tut-step-detail">${formatTutDetail(s.detail)}</div>
+      </div>
+    </div>`).join('');
+
+  const tipsHTML = tips.length ? `
+    <div class="tut-tips">
+      <div class="tut-tips-title">💡 小贴士</div>
+      ${tips.map(t => `<div class="tut-tip">• ${t}</div>`).join('')}
+    </div>` : '';
+
+  const links = `
+    <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);display:flex;gap:.75rem;align-items:center">
+      <a href="${tool.website}" target="_blank" class="btn btn-primary btn-sm">🌐 访问官网</a>
+      <span style="font-size:.8rem;color:var(--text3)">支持系统：${(tool.os || []).join(' / ')}</span>
+    </div>`;
+
+  return stepsHTML + tipsHTML + links;
+}
+
+function formatTutDetail(text) {
+  // 代码命令用 code 标签包裹（检测冒号+空格后的内容，或独立行）
+  return text
+    .replace(/\n/g, '<br>')
+    .replace(/：([^<]+命令[^<]*)?(`[^`]+`)/g, '：<code>$2</code>')
+    .replace(/(?:^|(?<=：|：\s))((?:[a-z][\w.-]*\s[\w\s./~-]*|[~/$][\w/.-]+)[^<\n]{0,80})/gm, (m) => {
+      // 简单规则：包含典型命令模式的行
+      if (/^(sudo|npm|pip|brew|curl|bash|sh|git|node|python|cargo|go|ruby|php|docker|apt|snap|nvm|pyenv|conda|yarn|pnpm|bun|deno|rustup|gem|composer|mvn|gradle|sdk)\b/.test(m.trim())) {
+        return `<code class="tut-cmd">${m.trim()}</code>`;
+      }
+      return m;
+    });
+}
+
+function closeEnvTutorial() {
+  const modal = $('#envTutorialModal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+
+// 点遮罩关闭
+document.addEventListener('click', e => {
+  if (e.target.id === 'envTutorialModal') closeEnvTutorial();
+});
