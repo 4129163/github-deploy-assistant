@@ -647,10 +647,14 @@ async function loadProjects() {
         <div class="project-card-footer">
           <button class="btn btn-primary" onclick="startProject(${p.id})">▶ 启动</button>
           <button class="btn btn-secondary" onclick="stopProject(${p.id})">⏹ 停止</button>
-          ${isFailed ? `<button class="btn btn-secondary" onclick="retryDeploy(${p.id})">🔄 重试</button>` : ''}
+          ${isFailed ? `<button class="btn btn-secondary" onclick="retryDeploy(${p.id})">�� 重试</button>` : ''}
           <button class="btn btn-ghost" id="updateBtn_${p.id}" onclick="checkAndUpdate(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🔔 检测更新</button>
           <button class="btn btn-ghost" onclick="openChat(${p.id})">💬 问AI</button>
           <button class="btn btn-ghost" onclick="showWebhookModal(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🔔 Webhook</button>
+          <button class="btn btn-ghost" onclick="showProjectBackups(${p.id}, '${p.name.replace(/'/g,"\\'")}')">💾 备份/回滚</button>
+          <button class="btn btn-ghost" onclick="showProjectDeployLogs(${p.id}, '${p.name.replace(/'/g,"\\'")}')">📋 部署日志</button>
+          <button class="btn btn-ghost" onclick="quickShareProject(${p.id})">🔗 分享</button>
+          <button class="btn btn-ghost" onclick="quickRemoteDeploy(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🌍 远程部署</button>
           <button class="btn btn-secondary" onclick="uninstallProject(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🗑 卸载</button>
           ${p.port ? `<a href="http://localhost:${p.port}" target="_blank" class="btn btn-primary" style="font-size:.78rem">🌐 打开</a>` : ''}
         </div>
