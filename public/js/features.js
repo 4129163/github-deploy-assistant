@@ -6,6 +6,23 @@
  * 功能40：私有仓库
  */
 
+function safeParseLogOutput(raw) {
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    if (Array.isArray(parsed)) {
+      // [{type,data,time}] 格式 or string[]
+      return parsed.slice(-10).map(item => {
+        if (typeof item === 'string') return item;
+        if (item && item.data) return item.data;
+        return JSON.stringify(item);
+      }).join('\n').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    return String(parsed).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  } catch (_) {
+    return String(raw || '').slice(0, 500).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+}
+
 // ============================================================
 // 公共：加载项目列表到 <select>
 // ============================================================
@@ -573,7 +590,7 @@ async function showProjectDeployLogs(projectId, name) {
                 <span style="font-size:.78rem;color:var(--text3)">${new Date(l.created_at).toLocaleString('zh-CN')}</span>
                 <span style="font-size:.78rem;color:var(--text3)">${l.mode || 'auto'}</span>
               </div>
-              ${l.output ? `<pre style="font-size:.75rem;color:var(--text2);white-space:pre-wrap;max-height:120px;overflow-y:auto;background:var(--bg2);padding:.5rem;border-radius:4px;margin:0">${JSON.parse(l.output||'[]').slice(-10).join('\n')}</pre>` : ''}
+              ${l.output ? `<pre style="font-size:.75rem;color:var(--text2);white-space:pre-wrap;max-height:120px;overflow-y:auto;background:var(--bg2);padding:.5rem;border-radius:4px;margin:0">${safeParseLogOutput(l.output)}</pre>` : ''}
             </div>`).join('')
         }
       </div>

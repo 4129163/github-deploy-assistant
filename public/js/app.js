@@ -647,7 +647,7 @@ async function loadProjects() {
         <div class="project-card-footer">
           <button class="btn btn-primary" onclick="startProject(${p.id})">▶ 启动</button>
           <button class="btn btn-secondary" onclick="stopProject(${p.id})">⏹ 停止</button>
-          ${isFailed ? `<button class="btn btn-secondary" onclick="retryDeploy(${p.id})">�� 重试</button>` : ''}
+          ${isFailed ? `<button class="btn btn-secondary" onclick="retryDeploy(${p.id})">🔄 重试</button>` : ''}
           <button class="btn btn-ghost" id="updateBtn_${p.id}" onclick="checkAndUpdate(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🔔 检测更新</button>
           <button class="btn btn-ghost" onclick="openChat(${p.id})">💬 问AI</button>
           <button class="btn btn-ghost" onclick="showWebhookModal(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🔔 Webhook</button>
