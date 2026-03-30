@@ -109,6 +109,10 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
+// 审计日志中间件
+const { auditMiddleware } = require('../services/audit-log');
+app.use(auditMiddleware);
+
 // 静态文件
 app.use(express.static(path.join(__dirname, '../../public')));
 
@@ -149,6 +153,12 @@ const webhookRoutes = require('../routes/webhook');
 app.use('/api/webhook', webhookRoutes);
 const diagnoseRoutes = require('../routes/diagnose');
 app.use('/api/diagnose', diagnoseRoutes);
+const logsRoutes = require('../routes/logs');
+app.use('/api/logs', logsRoutes);
+const monitorRoutes = require('../routes/monitor');
+app.use('/api/monitor', monitorRoutes);
+const networkOptRoutes = require('../routes/network-opt');
+app.use('/api/network-opt', networkOptRoutes);
 
 // 全身自检接口
 app.get('/api/selfcheck', async (req, res) => {

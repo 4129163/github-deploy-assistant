@@ -1022,6 +1022,12 @@ function init() {
   document.querySelector('[data-tab="templates"]').addEventListener('click', () => {
     if (!window._tplInited) { initTemplates(); window._tplInited = true; }
   });
+  document.querySelector('[data-tab="logs"]').addEventListener('click', () => {
+    if (!window._logsInited) { initLogs(); window._logsInited = true; }
+  });
+  document.querySelector('[data-tab="monitor"]').addEventListener('click', () => {
+    if (!window._monitorInited) { initMonitor(); window._monitorInited = true; }
+  });
 
   console.log('🚀 GADA initialized');
 }
@@ -3095,5 +3101,237 @@ async function checkNetworkAndAI() {
         </div>` : ''}`;
   } catch (err) {
     $('#netCheckContent').innerHTML = `<p style="color:#ef4444">❌ 检测失败: ${err.message}</p>`;
+  }
+}
+// ============================================
+// 日志浏览
+// ============================================
+let _currentLogFile = null;
+let _logTailEvtSource = null;
+
+async function initLogs() {
+  await loadLogsList();
+}
+
+async function loadLogsList() {
+  try {
+    const res = await api('/logs/list');
+    const files = res.data?.files || [];
+    const el = $('#logsFileList');
+    if (!files.length) {
+      el.innerHTML = '<div style="font-size:.78rem;color:var(--text3)">暂无日志文件</div>';
+      return;
+    }
+    el.innerHTML = files.map(f => `
+      <div class="log-file-item${_currentLogFile===f.name?' active':''}" onclick="loadLogFile('${f.name}')">
+        <div style="font-size:.78rem;word-break:break-all">${f.name}</div>
+        <div style="font-size:.68rem;color:var(--text3)">${f.size_human}</div>
+      </div>`).join('');
+  } catch (err) {
+    toast('加载日志列表失败: ' + err.message, 'err');
+  }
+}
+
+async function loadLogFile(filename, filter = '') {
+  stopLogTail();
+  _currentLogFile = filename;
+  $('#logFileName').textContent = filename;
+  $('#logContent').textContent = '加载中...';
+  // 更新高亮
+  $$('.log-file-item').forEach(el => el.classList.remove('active'));
+  try {
+    const res = await api(`/logs/read/${encodeURIComponent(filename)}?tail=300${filter ? '&filter=' + encodeURIComponent(filter) : ''}`);
+    const lines = res.data?.lines || [];
+    $('#logContent').innerHTML = lines.map(l => `<div class="log-line ${logLineClass(l)}">${escapeHtml(l)}</div>`).join('');
+    $('#logContent').scrollTop = $('#logContent').scrollHeight;
+  } catch (err) {
+    $('#logContent').textContent = '加载失败: ' + err.message;
+  }
+}
+
+function logLineClass(line) {
+  if (/error|fail|exception/i.test(line)) return 'log-err';
+  if (/warn/i.test(line)) return 'log-warn';
+  if (/✅|success|ok/i.test(line)) return 'log-ok';
+  return '';
+}
+
+function applyLogFilter() {
+  if (!_currentLogFile) { toast('请先选择日志文件', 'warn'); return; }
+  loadLogFile(_currentLogFile, $('#logFilterInput').value.trim());
+}
+
+function toggleLogTail() {
+  if (_logTailEvtSource) { stopLogTail(); return; }
+  if (!_currentLogFile) { toast('请先选择日志文件', 'warn'); return; }
+  $('#logTailBtn').textContent = '⏹ 停止追踪';
+  $('#logTailBtn').style.color = '#ef4444';
+  _logTailEvtSource = new EventSource(`/api/logs/stream/${encodeURIComponent(_currentLogFile)}`);
+  _logTailEvtSource.onmessage = (e) => {
+    const line = JSON.parse(e.data);
+    const el = $('#logContent');
+    const div = document.createElement('div');
+    div.className = 'log-line ' + logLineClass(line);
+    div.textContent = line;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+  };
+  _logTailEvtSource.onerror = () => stopLogTail();
+}
+
+function stopLogTail() {
+  if (_logTailEvtSource) { _logTailEvtSource.close(); _logTailEvtSource = null; }
+  const btn = $('#logTailBtn');
+  if (btn) { btn.textContent = '▶ 实时追踪'; btn.style.color = ''; }
+}
+
+async function showAuditLog() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay flex';
+  modal.id = 'auditModal';
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:700px;max-height:82vh;overflow-y:auto">
+      <div class="modal-header">
+        <h3>📋 审计日志</h3>
+        <div style="display:flex;gap:.4rem">
+          <input id="auditFilter" type="text" class="input" placeholder="过滤..." style="width:160px;font-size:.82rem">
+          <button class="btn btn-ghost btn-sm" onclick="reloadAuditLog()">🔍</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('auditModal').remove()">✕</button>
+        </div>
+      </div>
+      <div id="auditContent"><div class="spinner" style="margin:1rem auto"></div></div>
+    </div>`;
+  document.body.appendChild(modal);
+  await reloadAuditLog();
+}
+
+async function reloadAuditLog() {
+  const filter = $('#auditFilter')?.value || '';
+  try {
+    const res = await api(`/logs/audit?limit=100&filter=${encodeURIComponent(filter)}`);
+    const entries = res.data?.entries || [];
+    $('#auditContent').innerHTML = entries.length === 0
+      ? '<p style="color:var(--text3);padding:1rem">暂无审计记录</p>'
+      : `<table style="width:100%;font-size:.78rem;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:.3rem .5rem">时间</th>
+            <th style="text-align:left;padding:.3rem .5rem">操作</th>
+            <th style="text-align:left;padding:.3rem .5rem">状态</th>
+            <th style="text-align:left;padding:.3rem .5rem">耗时</th>
+          </tr></thead>
+          <tbody>${entries.map(e => `
+            <tr style="border-bottom:1px solid var(--border);color:${e.success===false?'#ef4444':'inherit'}">
+              <td style="padding:.25rem .5rem;white-space:nowrap">${new Date(e.ts).toLocaleString('zh-CN')}</td>
+              <td style="padding:.25rem .5rem">${e.action}</td>
+              <td style="padding:.25rem .5rem">${e.success!==false?'✅':'❌'} ${e.status||''}</td>
+              <td style="padding:.25rem .5rem">${e.ms||''}ms</td>
+            </tr>`).join('')}
+          </tbody></table>`;
+  } catch (err) {
+    $('#auditContent').innerHTML = `<p style="color:#ef4444">❌ ${err.message}</p>`;
+  }
+}
+
+// ============================================
+// 资源监控
+// ============================================
+let _monitorEvt = null;
+let _monitorData = { cpu: [], mem: [] };
+const CHART_MAX = 60;
+
+function initMonitor() {
+  loadNetworkOptStatus();
+}
+
+function startMonitorStream() {
+  if (_monitorEvt) return;
+  _monitorEvt = new EventSource('/api/monitor/stream');
+  _monitorEvt.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    updateMonitorCards(d);
+    updateMonitorChart(d);
+  };
+  _monitorEvt.onerror = () => stopMonitorStream();
+  toast('实时监控已开始', 'info');
+}
+
+function stopMonitorStream() {
+  if (_monitorEvt) { _monitorEvt.close(); _monitorEvt = null; }
+}
+
+function updateMonitorCards(d) {
+  const fmt = (b) => b > 1073741824 ? (b/1073741824).toFixed(1)+'GB' : (b/1048576).toFixed(0)+'MB';
+  if ($('#monCpu')) $('#monCpu').textContent = d.cpu_pct + '%';
+  if ($('#monCpuBar')) $('#monCpuBar').style.width = d.cpu_pct + '%';
+  if ($('#monMem')) $('#monMem').textContent = `${fmt(d.mem_used)} / ${fmt(d.mem_total)} (${d.mem_pct}%)`;
+  if ($('#monMemBar')) $('#monMemBar').style.width = d.mem_pct + '%';
+  if ($('#monDisk')) $('#monDisk').textContent = `${fmt(d.disk_used)} / ${fmt(d.disk_total)} (${d.disk_pct}%)`;
+  if ($('#monDiskBar')) $('#monDiskBar').style.width = d.disk_pct + '%';
+  if ($('#monLoad')) $('#monLoad').textContent = `${d.load_1} / ${d.load_5}`;
+}
+
+function updateMonitorChart(d) {
+  _monitorData.cpu.push(d.cpu_pct);
+  _monitorData.mem.push(d.mem_pct);
+  if (_monitorData.cpu.length > CHART_MAX) { _monitorData.cpu.shift(); _monitorData.mem.shift(); }
+  drawMonitorChart();
+}
+
+function drawMonitorChart() {
+  const canvas = $('#monitorCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.offsetWidth; const h = canvas.offsetHeight;
+  canvas.width = w; canvas.height = h;
+  ctx.clearRect(0, 0, w, h);
+  // 网格
+  ctx.strokeStyle = 'rgba(100,100,100,.15)'; ctx.lineWidth = 1;
+  [25,50,75].forEach(y => {
+    const py = h - (y/100)*h;
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+    ctx.fillStyle = 'rgba(100,100,100,.5)'; ctx.font = '10px monospace';
+    ctx.fillText(y+'%', 2, py - 2);
+  });
+  // 绘制折线
+  const drawLine = (data, color) => {
+    if (data.length < 2) return;
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+    data.forEach((v, i) => {
+      const x = (i / (CHART_MAX - 1)) * w;
+      const y = h - (v / 100) * h;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  };
+  drawLine(_monitorData.cpu, '#6366f1');
+  drawLine(_monitorData.mem, '#22c55e');
+}
+
+async function loadNetworkOptStatus() {
+  try {
+    const res = await api('/network-opt/status');
+    const d = res.data;
+    const el = $('#networkOptStatus');
+    if (!el) return;
+    el.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:.75rem;font-size:.83rem">
+        <div><span style="color:var(--text3)">npm registry: </span><code>${d.npm.current}</code> ${d.npm.is_cn_mirror?'<span style="color:#16a34a">✅ 国内镜像</span>':'<span style="color:#d97706">⚠️ 官方源</span>'}</div>
+        <div><span style="color:var(--text3)">pip mirror: </span><code>${d.pip.current}</code> ${d.pip.is_cn_mirror?'<span style="color:#16a34a">✅ 国内镜像</span>':'<span style="color:#d97706">⚠️ 默认源</span>'}</div>
+      </div>
+      ${d.suggestions.length ? `<div style="margin-top:.4rem;font-size:.78rem;color:#d97706">${d.suggestions.map(s=>`💡 ${s}`).join('<br>')}</div>` : ''}`;
+  } catch (_) {}
+}
+
+async function applyNetworkOpt() {
+  toast('🔍 测速中，请稍候...', 'info');
+  try {
+    const res = await api('/network-opt/apply', { method: 'POST' });
+    const d = res.data;
+    const npmMsg = d.result.npm ? `npm → ${d.result.npm.name}` : '';
+    const pipMsg = d.result.pip ? `pip → ${d.result.pip.name}` : '';
+    toast(`✅ 优化完成！${[npmMsg, pipMsg].filter(Boolean).join('，')}`, 'ok');
+    await loadNetworkOptStatus();
+  } catch (err) {
+    toast('优化失败: ' + err.message, 'err');
   }
 }

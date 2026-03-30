@@ -881,3 +881,20 @@ label .input { color: var(--text); }
 
 @media (max-width: 900px) { .tpl-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px) { .tpl-grid { grid-template-columns: 1fr; } }
+
+/* ====== 日志浏览 ====== */
+.log-file-item {
+  padding: .4rem .5rem; border-radius: var(--radius-sm); cursor: pointer;
+  margin-bottom: .2rem; font-size: .78rem; color: var(--text2);
+  transition: var(--transition); border: 1px solid transparent;
+}
+.log-file-item:hover { background: var(--bg2); }
+.log-file-item.active { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+.log-line { padding: .05rem 0; white-space: pre-wrap; word-break: break-all; }
+.log-line.log-err { color: #ef4444; }
+.log-line.log-warn { color: #d97706; }
+.log-line.log-ok { color: #16a34a; }
+
+/* ====== 资源监控 ====== */
+.sys-progress { height: 6px; background: var(--border); border-radius: 3px; margin-top: .3rem; overflow: hidden; }
+.sys-bar { height: 100%; background: var(--primary); border-radius: 3px; transition: width .5s ease; }
