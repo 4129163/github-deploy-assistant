@@ -997,6 +997,9 @@ function init() {
     if (!window._envGuideInited) { initEnvGuide(); window._envGuideInited = true; }
     $('#envSearch').addEventListener('input', renderEnvList);
   });
+  document.querySelector('[data-tab="envcheck"]').addEventListener('click', () => {
+    if (!window._envCheckInited) { window._envCheckInited = true; } // 按需扫描，不自动触发
+  });
 
   console.log('🚀 GADA initialized');
 }
@@ -2385,4 +2388,111 @@ async function applyHealFix(projectId, encodedCmd) {
 function closeHealModal() {
   document.getElementById('healModal')?.classList.add('hidden');
   document.getElementById('healModal')?.classList.remove('flex');
+}
+// ============================================
+// 环境检测页
+// ============================================
+async function doEnvDetect() {
+  const loading = $('#envCheckLoading');
+  const result = $('#envCheckResult');
+  const placeholder = $('#envCheckPlaceholder');
+  const btn = $('#envDetectBtn');
+
+  show(loading); hide(result); hide(placeholder);
+  btn.disabled = true; btn.textContent = '检测中...';
+
+  try {
+    const res = await api('/env/detect');
+    renderEnvCheck(res.data);
+    hide(loading); show(result);
+    const ok = res.data.results.filter(r => r.installed).length;
+    const total = res.data.results.length;
+    toast(`检测完成：${ok}/${total} 已安装`, ok === total ? 'ok' : 'warn');
+  } catch (err) {
+    hide(loading); show(placeholder);
+    toast('检测失败: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '🔍 一键检测';
+  }
+}
+
+function renderEnvCheck(data) {
+  const results = data.results || [];
+  const installed = results.filter(r => r.installed);
+  const missing = results.filter(r => !r.installed);
+  const platform = data.platform || 'linux';
+  const platformLabel = { linux: 'Linux', darwin: 'macOS', win32: 'Windows' }[platform] || platform;
+
+  $('#envCheckSummary').innerHTML = `
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
+      <div class="sw-sum-card" style="min-width:100px">
+        <div class="sw-sum-num" style="color:#22c55e">${installed.length}</div>
+        <div class="sw-sum-label">✅ 已安装</div>
+      </div>
+      <div class="sw-sum-card" style="min-width:100px">
+        <div class="sw-sum-num" style="color:#ef4444">${missing.length}</div>
+        <div class="sw-sum-label">❌ 未安装</div>
+      </div>
+      <div style="font-size:.83rem;color:var(--text3)">系统平台: ${platformLabel}</div>
+    </div>
+    ${missing.length > 0 ? `<div style="margin-top:.75rem;padding:.65rem 1rem;background:var(--primary-light);border-radius:var(--radius-sm);font-size:.85rem;color:var(--primary)">
+      ⚠️ 缺少 ${missing.map(m=>m.name).join('、')}，可能影响部分项目部署
+    </div>` : '<div style="margin-top:.5rem;padding:.5rem 1rem;background:#f0fdf4;border-radius:var(--radius-sm);font-size:.85rem;color:#16a34a">✅ 所有工具均已安装，部署环境就绪！</div>'}`;
+
+  $('#envCheckList').innerHTML = results.map(r => envCheckCard(r, platform)).join('');
+}
+
+function envCheckCard(r, platform) {
+  const statusColor = r.installed ? '#22c55e' : '#ef4444';
+  const statusIcon = r.installed ? '✅' : '❌';
+  const installBtnHtml = !r.installed && r.install_cmd
+    ? `<button class="btn btn-primary btn-sm" onclick="installEnvTool('${r.id}','${r.name}')">⬇️ 安装</button>`
+    : !r.installed ? `<a href="#" onclick="switchSwTabToGuide('${r.id}')" class="btn btn-ghost btn-sm">📖 查看教程</a>` : '';
+
+  return `
+    <div class="sw-env-card" style="border-left:3px solid ${statusColor}">
+      <div class="sw-env-info">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <span>${statusIcon}</span>
+          <span class="sw-item-name">${r.name}</span>
+          ${r.installed ? `<span class="sw-item-ver">${r.version || ''}</span>` : '<span style="font-size:.78rem;color:#ef4444">未安装</span>'}
+        </div>
+        ${!r.installed && r.install_cmd ? `<div style="font-size:.75rem;color:var(--text3);margin-top:.2rem;font-family:monospace">${r.install_cmd}</div>` : ''}
+        ${r.install_note && !r.installed ? `<div style="font-size:.72rem;color:var(--text3);margin-top:.15rem">💡 ${r.install_note}</div>` : ''}
+      </div>
+      <div class="sw-env-actions">${installBtnHtml}</div>
+    </div>`;
+}
+
+async function installEnvTool(toolId, toolName) {
+  if (!confirm(`安装 ${toolName}？\n\n将在后台执行安装命令，可能需要 1-2 分钟。\n\n注意：Linux/macOS 可自动安装，Windows 需手动操作。`)) return;
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '安装中...';
+  try {
+    toast(`正在安装 ${toolName}...`, 'info');
+    const res = await api('/env/install', {
+      method: 'POST',
+      body: JSON.stringify({ tool_id: toolId }),
+    });
+    const d = res.data;
+    if (d.manual) {
+      alert(`Windows 自动安装说明:\n\n${d.message}`);
+    } else {
+      toast(d.message, d.success ? 'ok' : 'warn');
+    }
+    if (d.success || !d.manual) await doEnvDetect(); // 重新检测
+  } catch (err) {
+    toast('安装失败: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '⬇️ 安装';
+  }
+}
+
+function switchSwTabToGuide(toolId) {
+  // 跳转到环境指南 Tab 并搜索对应工具
+  document.querySelector('[data-tab="envguide"]')?.click();
+  setTimeout(() => {
+    const input = $('#envSearch');
+    if (input) { input.value = toolId; renderEnvList(); }
+  }, 300);
 }

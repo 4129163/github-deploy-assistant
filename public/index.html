@@ -50,6 +50,9 @@
         <button class="nav-item" data-tab="envguide">
           <span class="nav-icon">📚</span><span class="nav-label">环境指南</span>
         </button>
+        <button class="nav-item" data-tab="envcheck">
+          <span class="nav-icon">🔧</span><span class="nav-label">环境检测</span>
+        </button>
       </div>
       <div class="nav-divider"></div>
       <div class="nav-group">
@@ -577,6 +580,28 @@
             <button class="btn btn-ghost" onclick="closeHealModal()">✕</button>
           </div>
           <div id="healModalContent"></div>
+        </div>
+      </div>
+
+      <!-- ========== 环境检测 ========== -->
+      <div id="envcheck" class="tab hidden">
+        <div class="tab-header">
+          <h2>🔧 环境检测</h2>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button id="envDetectBtn" class="btn btn-primary btn-sm" onclick="doEnvDetect()">🔍 一键检测</button>
+          </div>
+        </div>
+        <div id="envCheckLoading" class="search-loading hidden">
+          <div class="spinner"></div><span>正在检测运行环境...</span>
+        </div>
+        <div id="envCheckPlaceholder" class="device-placeholder">
+          <div style="font-size:3rem">🔧</div>
+          <p>点击「一键检测」扫描系统中所有开发工具安装状态</p>
+          <p style="font-size:.82rem;color:var(--text3)">检测项目：Node.js · Python · Git · Docker · Nginx · PM2 · 编译工具等</p>
+        </div>
+        <div id="envCheckResult" style="display:none">
+          <div id="envCheckSummary" style="margin-bottom:1rem"></div>
+          <div id="envCheckList"></div>
         </div>
       </div>
 

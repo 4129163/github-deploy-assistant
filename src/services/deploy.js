@@ -180,6 +180,23 @@ async function autoDeploy(project, onProgress) {
   try {
     progress('开始部署...', { step: 'start' });
 
+    // 部署前环境检测
+    const { detectForProject } = require('./env-detector');
+    progress('检测运行环境...', { step: 'env_check' });
+    const envCheck = await detectForProject(types);
+    if (!envCheck.all_ok) {
+      const missing = envCheck.missing.map(m => m.name).join('、');
+      const hint = envCheck.missing.map(m => m.install_cmd ? `${m.name}: ${m.install_cmd}` : m.name).join('\n');
+      progress(`⚠️ 缺少运行环境: ${missing}\n\n安装建议:\n${hint}`, {
+        step: 'env_missing',
+        missing: envCheck.missing,
+        auto_installable: envCheck.missing.some(m => m.install_cmd)
+      });
+      // 非致命：给出警告但继续（用户可在部署页面点击安装）
+    } else {
+      progress(`✅ 运行环境检测通过`, { step: 'env_ok' });
+    }
+
     if (types.includes('nodejs')) {
       progress('安装 Node.js 依赖...', { step: 'install' });
       const hasYarn = await fs.pathExists(path.join(local_path, 'yarn.lock'));
