@@ -143,6 +143,12 @@ const templatesRoutes = require('../routes/templates');
 app.use('/api/templates', templatesRoutes);
 const dockerRoutes = require('../routes/docker');
 app.use('/api/docker', dockerRoutes);
+const configIoRoutes = require('../routes/config-io');
+app.use('/api/config', configIoRoutes);
+const webhookRoutes = require('../routes/webhook');
+app.use('/api/webhook', webhookRoutes);
+const diagnoseRoutes = require('../routes/diagnose');
+app.use('/api/diagnose', diagnoseRoutes);
 
 // 全身自检接口
 app.get('/api/selfcheck', async (req, res) => {

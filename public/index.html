@@ -194,6 +194,9 @@
                 <div id="repoMeta"></div>
               </div>
 
+              <!-- 风险扫描结果 -->
+              <div id="riskBanner" class="hidden" style="margin-bottom:.75rem"></div>
+
               <div id="aiAnalysisCard" class="info-card ai-card hidden">
                 <div class="card-header">
                   <h3>🤖 AI 分析</h3>
@@ -372,8 +375,11 @@
       <div id="system" class="tab hidden">
         <div class="tab-header">
           <h2>🖥️ 系统状态</h2>
-          <div style="display:flex;gap:.5rem">
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
             <button id="selfCheckBtn" class="btn btn-primary btn-sm">🩺 全身自检</button>
+            <button class="btn btn-ghost btn-sm" onclick="checkNetworkAndAI()">🌐 网络检测</button>
+            <button class="btn btn-ghost btn-sm" onclick="downloadConfig()">📤 导出配置</button>
+            <button class="btn btn-ghost btn-sm" onclick="showImportModal()">📥 导入配置</button>
             <button id="refreshSystemBtn" class="btn btn-secondary btn-sm">🔄 刷新</button>
           </div>
         </div>

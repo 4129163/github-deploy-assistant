@@ -372,6 +372,19 @@ async function analyzeRepo() {
   const url = input;
 
   showStep('step-analyzing');
+
+  // 部署前综合检测（网络+AI）
+  try {
+    const pre = await api('/diagnose/preflight');
+    if (pre.data && !pre.data.ready && pre.data.issues?.length > 0) {
+      const msg = pre.data.suggestions.slice(0, 3).join('\n');
+      if (!confirm(`⚠️ 检测到以下问题，继续可能导致部署失败：\n\n${msg}\n\n是否仍要继续？`)) {
+        showStep('step-input');
+        return;
+      }
+    }
+  } catch (_) {} // 检测失败不阻塞
+
   // 分析步骤动画
   const steps = ['astep-fetch', 'astep-detect', 'astep-ai'];
   steps.forEach(id => { const el = document.getElementById(id); if (el) { el.classList.remove('active','done'); } });
@@ -500,6 +513,11 @@ function showAnalysisResult(data) {
   }
 
   showStep('step-result');
+
+  // 分析完成后，异步进行代码风险扫描（不阻塞用户）
+  if (state.currentProject?.id) {
+    setTimeout(() => runRiskScan(state.currentProject.id), 500);
+  }
 }
 
 // ============================================
@@ -632,6 +650,7 @@ async function loadProjects() {
           ${isFailed ? `<button class="btn btn-secondary" onclick="retryDeploy(${p.id})">🔄 重试</button>` : ''}
           <button class="btn btn-ghost" id="updateBtn_${p.id}" onclick="checkAndUpdate(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🔔 检测更新</button>
           <button class="btn btn-ghost" onclick="openChat(${p.id})">💬 问AI</button>
+          <button class="btn btn-ghost" onclick="showWebhookModal(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🔔 Webhook</button>
           <button class="btn btn-secondary" onclick="uninstallProject(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🗑 卸载</button>
           ${p.port ? `<a href="http://localhost:${p.port}" target="_blank" class="btn btn-primary" style="font-size:.78rem">🌐 打开</a>` : ''}
         </div>
@@ -2820,4 +2839,261 @@ async function dockerViewLogs() {
 function escapeHtml(str) {
   if (!str) return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+// ============================================
+// 代码风险扫描（分析结果页）
+// ============================================
+async function runRiskScan(projectId) {
+  if (!projectId) return;
+  const banner = $('#riskBanner');
+  if (!banner) return;
+  banner.innerHTML = '<span style="color:var(--text3);font-size:.82rem">🔍 正在扫描代码风险...</span>';
+  banner.classList.remove('hidden');
+  try {
+    const res = await api(`/diagnose/risk/${projectId}`, { method: 'POST' });
+    const d = res.data;
+    renderRiskBanner(d);
+  } catch (err) {
+    banner.innerHTML = `<span style="font-size:.8rem;color:var(--text3)">⚠️ 风险扫描失败: ${err.message}</span>`;
+  }
+}
+
+function renderRiskBanner(d) {
+  const banner = $('#riskBanner');
+  if (!banner) return;
+  const colors = { safe: '#16a34a', low: '#2563eb', medium: '#d97706', high: '#dc2626' };
+  const icons = { safe: '✅', low: '💡', medium: '⚠️', high: '🚨' };
+  const color = colors[d.risk_level] || '#6b7280';
+  const icon = icons[d.risk_level] || '❓';
+
+  banner.innerHTML = `
+    <div style="padding:.65rem 1rem;border-radius:var(--radius-sm);border:1px solid ${color}30;background:${color}10;display:flex;align-items:flex-start;gap:.6rem;flex-wrap:wrap">
+      <span style="font-size:1rem">${icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;color:${color};font-size:.85rem">风险扫描：${{safe:'安全',low:'低风险',medium:'中等风险',high:'高风险'}[d.risk_level] || d.risk_level}</div>
+        <div style="font-size:.8rem;color:var(--text2);margin-top:.15rem">${d.recommendation}</div>
+        ${d.summary.total > 0 ? `<div style="font-size:.75rem;color:var(--text3);margin-top:.2rem">高: ${d.summary.high} · 中: ${d.summary.medium} · 低: ${d.summary.low}</div>` : ''}
+      </div>
+      ${d.summary.total > 0 ? `<button class="btn btn-ghost btn-sm" onclick="showRiskDetails()">查看详情</button>` : ''}
+    </div>
+    ${d.risk_level === 'high' ? `<div style="margin-top:.4rem;padding:.5rem 1rem;background:#fef2f2;border-radius:var(--radius-sm);font-size:.82rem;color:#dc2626">🚨 发现高风险项，建议不部署或充分了解后再继续。</div>` : ''}`;
+  banner.classList.remove('hidden');
+  // 存储扫描结果供详情弹窗用
+  window._riskData = d;
+}
+
+function showRiskDetails() {
+  const d = window._riskData;
+  if (!d) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay flex';
+  modal.id = 'riskDetailModal';
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:680px;max-height:80vh;overflow-y:auto">
+      <div class="modal-header">
+        <h3>🔍 代码风险扫描详情</h3>
+        <button class="btn btn-ghost" onclick="document.getElementById('riskDetailModal').remove()">✕</button>
+      </div>
+      <p style="font-size:.85rem;color:var(--text2);margin-bottom:1rem">${d.recommendation}</p>
+      ${d.findings.length === 0 ? '<p style="color:#16a34a">✅ 未发现任何风险项</p>' : d.findings.map(f => `
+        <div class="heal-suggestion" style="border-left:3px solid ${({high:'#dc2626',medium:'#d97706',low:'#2563eb'})[f.level]||'#6b7280'};padding-left:.75rem">
+          <div class="heal-suggestion-title">${({high:'🚨',medium:'⚠️',low:'💡'})[f.level]||'•'} ${f.desc}</div>
+          <div style="font-size:.78rem;color:var(--text3)">${f.file}${f.line ? ` 第${f.line}行` : ''}</div>
+          ${f.details?.map(d2 => `<div style="font-size:.75rem;color:var(--text2);margin-top:.2rem;font-family:monospace">${d2}</div>`).join('') || ''}
+        </div>`).join('')}
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+// ============================================
+// 导入/导出配置
+// ============================================
+function downloadConfig() {
+  window.location.href = '/api/config/export';
+  toast('正在下载配置文件...', 'info');
+}
+
+async function showImportModal() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay flex';
+  modal.id = 'importModal';
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:520px">
+      <div class="modal-header">
+        <h3>📥 导入配置</h3>
+        <button class="btn btn-ghost" onclick="document.getElementById('importModal').remove()">✕</button>
+      </div>
+      <p style="font-size:.85rem;color:var(--text2);margin-bottom:1rem">上传之前导出的 <code>gada-config-*.json</code> 文件，恢复所有项目配置。</p>
+      <div style="display:flex;flex-direction:column;gap:.75rem">
+        <input type="file" id="importFileInput" accept=".json" class="input">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <input type="checkbox" id="importOverwrite">
+          <label for="importOverwrite" style="font-size:.85rem">遇到重复项目时覆盖（默认跳过）</label>
+        </div>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn btn-ghost btn-sm" onclick="previewImport()">👁 预览</button>
+          <button class="btn btn-primary" onclick="doImport()">📥 确认导入</button>
+        </div>
+        <div id="importPreviewResult"></div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function readImportFile() {
+  const file = $('#importFileInput')?.files[0];
+  if (!file) { toast('请先选择文件', 'warn'); return null; }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => { try { resolve(JSON.parse(e.target.result)); } catch (_) { reject(new Error('JSON 解析失败')); } };
+    reader.readAsText(file);
+  });
+}
+
+async function previewImport() {
+  try {
+    const data = await readImportFile();
+    const res = await api('/config/import/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data }),
+    });
+    const d = res.data;
+    $('#importPreviewResult').innerHTML = `
+      <div style="font-size:.83rem;margin-top:.5rem">
+        <div>�� 共 ${d.total} 个项目：<span style="color:#16a34a">${d.new} 个新增</span>，<span style="color:#d97706">${d.conflicts} 个冲突</span></div>
+        ${d.preview.slice(0, 10).map(p => `<div style="padding:.2rem 0;color:${p._import_status==='conflict'?'#d97706':'var(--text2)'}">${p._import_status==='conflict'?'⚠️':'✅'} ${p.name} (${p.repo_url?.slice(0,40)})</div>`).join('')}
+      </div>`;
+  } catch (err) {
+    toast('预览失败: ' + err.message, 'err');
+  }
+}
+
+async function doImport() {
+  try {
+    const data = await readImportFile();
+    const conflict = $('#importOverwrite')?.checked ? 'overwrite' : 'skip';
+    const res = await api(`/config/import?conflict=${conflict}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data }),
+    });
+    const d = res.data;
+    const imported = d.results.filter(r => r.action === 'imported').length;
+    const skipped = d.results.filter(r => r.action === 'skipped').length;
+    toast(`导入完成：${imported} 个成功，${skipped} 个跳过`, 'ok');
+    document.getElementById('importModal')?.remove();
+    loadProjects();
+  } catch (err) {
+    toast('导入失败: ' + err.message, 'err');
+  }
+}
+
+// ============================================
+// Webhook 管理
+// ============================================
+async function showWebhookModal(projectId, projectName) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay flex';
+  modal.id = 'webhookModal';
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:560px">
+      <div class="modal-header">
+        <h3>🔔 Webhook 自动更新</h3>
+        <button class="btn btn-ghost" onclick="document.getElementById('webhookModal').remove()">✕</button>
+      </div>
+      <div id="webhookContent"><div class="spinner" style="margin:1rem auto"></div></div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  try {
+    const res = await api(`/webhook/setup/${projectId}`);
+    const d = res.data;
+    $('#webhookContent').innerHTML = `
+      <p style="font-size:.85rem;color:var(--text2);margin-bottom:.75rem">
+        每次向 GitHub 推送代码时，自动拉取更新并重启「${projectName}」。
+      </p>
+      <div style="margin-bottom:.75rem">
+        <label style="font-size:.82rem;color:var(--text3)">Webhook URL（复制到 GitHub）</label>
+        <div style="display:flex;gap:.4rem;margin-top:.3rem">
+          <input type="text" class="input" value="${d.webhook_url}" readonly style="flex:1;font-size:.8rem">
+          <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${d.webhook_url}').then(()=>toast('已复制','ok'))">📋</button>
+        </div>
+      </div>
+      <details>
+        <summary style="cursor:pointer;font-size:.85rem;font-weight:600">📖 配置步骤</summary>
+        <ol style="font-size:.82rem;color:var(--text2);margin-top:.5rem;padding-left:1.2rem;line-height:1.8">
+          ${d.instructions.map(s => `<li>${s}</li>`).join('')}
+        </ol>
+      </details>
+      <div style="margin-top:.75rem;display:flex;gap:.5rem">
+        <button class="btn btn-danger btn-sm" onclick="deleteWebhook('${projectId}')">🗑 删除 Webhook</button>
+      </div>`;
+  } catch (err) {
+    $('#webhookContent').innerHTML = `<p style="color:#ef4444">❌ ${err.message}</p>`;
+  }
+}
+
+async function deleteWebhook(projectId) {
+  if (!confirm('删除此项目的 Webhook？')) return;
+  try {
+    await api(`/webhook/${projectId}`, { method: 'DELETE' });
+    toast('Webhook 已删除', 'ok');
+    document.getElementById('webhookModal')?.remove();
+  } catch (err) {
+    toast('删除失败: ' + err.message, 'err');
+  }
+}
+// 网络+AI 综合检测弹窗
+async function checkNetworkAndAI() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay flex';
+  modal.id = 'netCheckModal';
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width:620px;max-height:80vh;overflow-y:auto">
+      <div class="modal-header">
+        <h3>🌐 网络与 AI 检测</h3>
+        <button class="btn btn-ghost" onclick="document.getElementById('netCheckModal').remove()">✕</button>
+      </div>
+      <div id="netCheckContent"><div class="spinner" style="margin:1.5rem auto"></div><p style="text-align:center;color:var(--text3)">检测中，请稍候...</p></div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  try {
+    const [netRes, aiRes] = await Promise.all([
+      api('/diagnose/network'),
+      api('/diagnose/ai'),
+    ]);
+    const net = netRes.data;
+    const ai = aiRes.data;
+
+    $('#netCheckContent').innerHTML = `
+      <h4 style="margin-bottom:.5rem">🌐 网络连通性</h4>
+      <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.75rem">
+        ${net.results.map(r => `<span style="font-size:.78rem;padding:.2rem .6rem;border-radius:10px;background:${r.ok?'#f0fdf4':'#fef2f2'};color:${r.ok?'#16a34a':'#dc2626'}">
+          ${r.ok?'✅':'❌'} ${r.name} ${r.ok?(r.latency+'ms'):r.error||''}
+        </span>`).join('')}
+      </div>
+      ${net.suggestions.length ? `<div style="font-size:.82rem;color:#d97706;margin-bottom:.75rem">${net.suggestions.map(s=>`<div>💡 ${s}</div>`).join('')}</div>` : '<div style="font-size:.82rem;color:#16a34a;margin-bottom:.75rem">✅ 网络连通性正常</div>'}
+
+      <h4 style="margin-bottom:.5rem">🤖 AI 提供商</h4>
+      <div style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:.75rem">
+        ${ai.results.length === 0 ? '<p style="color:var(--text3);font-size:.83rem">暂无配置的 AI 提供商，请在「AI 设置」中添加</p>' : ai.results.map(r => `
+          <div style="display:flex;align-items:center;gap:.5rem;font-size:.83rem">
+            <span>${r.ok?'✅':r.configured?'❌':'⚪'}</span>
+            <span style="font-weight:600">${r.name}</span>
+            ${r.ok ? `<span style="color:#16a34a">${r.latency}ms</span>` : ''}
+            ${!r.ok && r.error ? `<span style="color:#ef4444">${r.error}</span>` : ''}
+            ${!r.configured ? '<span style="color:var(--text3)">未配置</span>' : ''}
+          </div>`).join('')}
+      </div>
+
+      ${net.suggestions.length > 0 ? `
+        <div style="margin-top:.5rem;padding:.65rem 1rem;background:#fffbeb;border-radius:var(--radius-sm)">
+          <div style="font-weight:600;font-size:.85rem;margin-bottom:.3rem">💡 修复建议</div>
+          ${net.suggestions.map(s => `<div style="font-size:.8rem;color:#92400e;margin-top:.2rem">${s}</div>`).join('')}
+        </div>` : ''}`;
+  } catch (err) {
+    $('#netCheckContent').innerHTML = `<p style="color:#ef4444">❌ 检测失败: ${err.message}</p>`;
+  }
 }
