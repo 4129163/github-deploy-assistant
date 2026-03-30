@@ -49,8 +49,6 @@ router.get('/env', async (req, res) => {
   res.json({ success: true, data: { env, ready: allRequired } });
 });
 
-module.exports = router;
-
 /**
  * 获取所有项目健康状态
  * GET /api/system/health
@@ -63,3 +61,5 @@ router.get('/health', (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+module.exports = router;

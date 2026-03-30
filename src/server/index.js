@@ -130,6 +130,17 @@ app.use('/api/scan', scanRoutes);
 const settingsRoutes = require('../routes/settings');
 app.use('/api/settings', settingsRoutes);
 
+// 全身自检接口
+app.get('/api/selfcheck', async (req, res) => {
+  try {
+    const { runSelfCheck } = require('../services/self-check');
+    const result = await runSelfCheck();
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // 主页
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../../public/index.html'));
