@@ -319,12 +319,23 @@
       <div id="system" class="tab hidden">
         <div class="tab-header">
           <h2>🖥️ 系统状态</h2>
-          <button id="refreshSystemBtn" class="btn btn-secondary btn-sm">🔄 刷新</button>
+          <div style="display:flex;gap:.5rem">
+            <button id="selfCheckBtn" class="btn btn-primary btn-sm">🩺 全身自检</button>
+            <button id="refreshSystemBtn" class="btn btn-secondary btn-sm">🔄 刷新</button>
+          </div>
         </div>
         <div id="systemInfo" class="system-grid"></div>
         <div class="section-gap"></div>
         <h3 class="section-title">⚡ 进程管理</h3>
         <div id="processList" class="process-list"></div>
+        <div class="section-gap"></div>
+        <div id="selfCheckPanel" style="display:none">
+          <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">
+            <h3 class="section-title" style="margin:0">🩺 自检报告</h3>
+            <span id="selfCheckSummary" style="font-size:.85rem;color:var(--text3)"></span>
+          </div>
+          <div id="selfCheckResult"></div>
+        </div>
       </div>
 
       <!-- ========== AI 设置 ========== -->

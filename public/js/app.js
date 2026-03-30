@@ -223,6 +223,85 @@ async function loadSystemStatus() {
   }
 }
 
+// ============================================
+// 全身自检
+// ============================================
+async function runSelfCheck() {
+  const btn = $('#selfCheckBtn');
+  const panel = $('#selfCheckPanel');
+  const resultEl = $('#selfCheckResult');
+  const summaryEl = $('#selfCheckSummary');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ 检查中...';
+  show(panel);
+  resultEl.innerHTML = '<div style="color:var(--text3);padding:1rem">正在执行全身自检，请稍候...</div>';
+  summaryEl.textContent = '';
+
+  try {
+    const res = await api('/selfcheck');
+    const { results, summary } = res.data;
+
+    const statusIcon = { PASS: '✅', WARN: '⚠️', FAIL: '❌', FIXED: '🔧' };
+    const statusColor = { PASS: 'var(--green,#22c55e)', WARN: 'var(--yellow,#eab308)', FAIL: 'var(--red,#ef4444)', FIXED: 'var(--blue,#3b82f6)' };
+
+    // 按模块分组
+    const groups = {};
+    for (const r of results) {
+      if (!groups[r.module]) groups[r.module] = [];
+      groups[r.module].push(r);
+    }
+
+    let html = '';
+    for (const [mod, items] of Object.entries(groups)) {
+      const modFail = items.filter(i => i.status === 'FAIL').length;
+      const modWarn = items.filter(i => i.status === 'WARN').length;
+      const modFixed = items.filter(i => i.status === 'FIXED').length;
+      const modBadge = modFail > 0 ? `<span style="color:#ef4444;font-size:.75rem">❌ ${modFail} 失败</span>`
+        : modWarn > 0 ? `<span style="color:#eab308;font-size:.75rem">⚠️ ${modWarn} 警告</span>`
+        : modFixed > 0 ? `<span style="color:#3b82f6;font-size:.75rem">🔧 ${modFixed} 已修复</span>`
+        : `<span style="color:#22c55e;font-size:.75rem">全部通过</span>`;
+      html += `<div style="margin-bottom:1rem;background:var(--card-bg,#1e1e2e);border-radius:.75rem;overflow:hidden">`;
+      html += `<div style="padding:.6rem 1rem;background:var(--sidebar-bg,#181825);display:flex;justify-content:space-between;align-items:center">`;
+      html += `<span style="font-weight:600;font-size:.9rem">${mod}</span>${modBadge}</div>`;
+      html += `<div style="padding:.5rem 0">`;
+      for (const item of items) {
+        const icon = statusIcon[item.status] || '';
+        const color = statusColor[item.status] || 'inherit';
+        html += `<div style="display:flex;gap:.75rem;padding:.35rem 1rem;font-size:.85rem">`;
+        html += `<span style="width:1.5rem;text-align:center">${icon}</span>`;
+        html += `<span style="min-width:180px;color:var(--text2)">${item.item}</span>`;
+        html += `<span style="color:${color};flex:1">${item.detail || ''}</span>`;
+        if (item.fix) html += `<span style="color:var(--text3);font-size:.8rem">${item.fix}</span>`;
+        html += `</div>`;
+      }
+      html += `</div></div>`;
+    }
+    resultEl.innerHTML = html;
+
+    const allOk = summary.failed === 0 && summary.warned === 0;
+    summaryEl.innerHTML = `<span style="color:#22c55e">✅ ${summary.passed}</span>　`
+      + (summary.warned > 0 ? `<span style="color:#eab308">⚠️ ${summary.warned}</span>　` : '')
+      + (summary.failed > 0 ? `<span style="color:#ef4444">❌ ${summary.failed}</span>　` : '')
+      + (summary.fixed > 0 ? `<span style="color:#3b82f6">🔧 ${summary.fixed}</span>　` : '')
+      + `<span style="color:var(--text3)">共 ${summary.total} 项</span>`;
+
+    if (allOk) {
+      toast('🩺 全身自检通过，系统状态正常', 'ok');
+    } else if (summary.failed > 0) {
+      toast(`🩺 自检发现 ${summary.failed} 个问题，请查看报告`, 'err');
+    } else {
+      toast(`🩺 自检完成，${summary.warned} 个警告，${summary.fixed} 个已自动修复`, 'warn');
+    }
+  } catch (err) {
+    resultEl.innerHTML = `<div style="color:#ef4444;padding:1rem">自检失败: ${err.message}</div>`;
+    toast('自检请求失败: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🩺 全身自检';
+  }
+}
+
 async function stopProcess(projectId) {
   try {
     await api(`/process/${projectId}/stop`, { method: 'POST' });
@@ -728,6 +807,9 @@ function init() {
   const _pf = $('#projectFilter');
   if (_pf) _pf.addEventListener('change', loadProjects);
   $('#scanBtn').addEventListener('click', runScan);
+  $('#selfCheckBtn').addEventListener('click', runSelfCheck);
+  const _refreshSystem = $('#refreshSystemBtn');
+  if (_refreshSystem) _refreshSystem.addEventListener('click', loadSystemStatus);
 
   // 初始环境检测
   api('/system/env').then(res => {
