@@ -842,3 +842,21 @@ label .input { color: var(--text); }
 @media (max-width: 600px) {
   .envg-grid { grid-template-columns: 1fr; }
 }
+
+/* ====== AI 故障自愈 ====== */
+.heal-analysis {
+  background: var(--bg2); border-radius: var(--radius-sm);
+  padding: .85rem 1rem; margin-bottom: 1rem;
+  font-size: .87rem; color: var(--text2); line-height: 1.7;
+}
+.heal-suggestion { margin-bottom: 1rem; }
+.heal-suggestion-title { font-weight: 700; margin-bottom: .5rem; font-size: .9rem; }
+.heal-cmd {
+  background: #1e1e2e; color: #a6e3a1;
+  padding: .85rem 1rem; border-radius: var(--radius-sm);
+  font-size: .83rem; overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+  font-family: monospace; margin: 0;
+}
+
+/* ====== 批量操作 ====== */
+.batch-cb { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }

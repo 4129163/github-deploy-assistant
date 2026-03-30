@@ -375,4 +375,84 @@ router.post('/providers/test', async (req, res) => {
   }
 });
 
+/**
+ * AI 故障自愈
+ * POST /api/ai/heal/:projectId        — 分析错误日志，生成修复建议
+ * POST /api/ai/heal/:projectId/apply  — 执行修复命令
+ */
+router.post('/heal/:projectId', async (req, res) => {
+  try {
+    const project = await ProjectDB.getById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const { error_log = '' } = req.body;
+    if (!error_log.trim()) return res.status(400).json({ error: '缺少 error_log' });
+
+    const { chat } = require('../services/ai');
+    const messages = [
+      {
+        role: 'system',
+        content: '你是一个专业的 DevOps 工程师，擅长分析项目部署错误并给出修复方案。请用简体中文回复，回复格式必须是合法 JSON。'
+      },
+      {
+        role: 'user',
+        content: `项目名称: ${project.name}\n项目类型: ${project.project_type || '未知'}\n仓库: ${project.repo_url || '未知'}\n\n错误日志:\n${error_log.slice(0, 3000)}\n\n请分析原因并给出修复方案。返回 JSON 格式：\n{\n  "analysis": "错误原因分析（1-3句话）",\n  "suggestion": "修复步骤说明（给用户看的文字，可包含命令）",\n  "auto_fixable": true/false,\n  "fix_command": "可自动执行的单条命令（若 auto_fixable=true），否则为 null"\n}`
+      }
+    ];
+
+    const raw = await chat(messages);
+    let parsed;
+    try {
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+    } catch (_) {
+      parsed = { analysis: raw, suggestion: raw, auto_fixable: false, fix_command: null };
+    }
+
+    // 安全检查：fix_command 必须在白名单内
+    if (parsed.auto_fixable && parsed.fix_command) {
+      const { validateCommand } = require('../services/deploy');
+      if (!validateCommand(parsed.fix_command)) {
+        parsed.auto_fixable = false;
+        parsed.fix_command = null;
+        parsed.suggestion += '\n\n（自动修复命令不在安全白名单内，请手动执行）';
+      }
+    }
+
+    logger.info(`[AIHeal] Project ${project.name}: auto_fixable=${parsed.auto_fixable}`);
+    res.json({ success: true, data: parsed });
+  } catch (err) {
+    logger.error('AI heal error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/heal/:projectId/apply', async (req, res) => {
+  try {
+    const project = await ProjectDB.getById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+    const { fix_command } = req.body;
+    if (!fix_command) return res.status(400).json({ error: '缺少 fix_command' });
+
+    const { executeCommand, validateCommand } = require('../services/deploy');
+    if (!validateCommand(fix_command)) {
+      return res.status(403).json({ error: '命令不在安全白名单内，禁止执行' });
+    }
+
+    if (global.broadcastLog) global.broadcastLog(String(project.id), `🔧 执行修复命令: ${fix_command}`);
+    const result = await executeCommand(fix_command, project.local_path || require('../config').WORK_DIR);
+    if (global.broadcastLog) {
+      result.outputs?.forEach(o => global.broadcastLog(String(project.id), o.data));
+    }
+
+    res.json({
+      success: result.success,
+      message: result.success ? '修复命令执行成功' : `修复命令失败（exit ${result.exitCode}）`,
+      data: result
+    });
+  } catch (err) {
+    logger.error('AI heal apply error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

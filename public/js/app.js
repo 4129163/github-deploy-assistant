@@ -515,9 +515,11 @@ async function loadProjects() {
     container.innerHTML = list.map(p => {
       const isFailed = ['failed'].includes(p.status);
       const tags = (p.tags || '').split(',').filter(Boolean);
+      const batchMode = window._batchMode || false;
       return `
-      <div class="project-card">
+      <div class="project-card" data-id="${p.id}">
         <div class="project-card-header">
+          ${batchMode ? `<input type="checkbox" class="batch-cb" data-id="${p.id}" onchange="updateBatchCount()" style="margin-right:.5rem;margin-top:.2rem;cursor:pointer">` : ''}
           <div style="flex:1;min-width:0">
             <div class="project-name">${p.name}</div>
             <div class="project-url">${p.repo_url || ''}</div>
@@ -2095,3 +2097,146 @@ function closeEnvTutorial() {
 document.addEventListener('click', e => {
   if (e.target.id === 'envTutorialModal') closeEnvTutorial();
 });
+// ============================================
+// 批量操作
+// ============================================
+window._batchMode = false;
+window._selectedIds = new Set();
+
+function toggleBatchMode(on) {
+  window._batchMode = on;
+  window._selectedIds.clear();
+  const toolbar = $('#batchToolbar');
+  if (toolbar) toolbar.style.display = on ? 'flex' : 'none';
+  updateBatchCount();
+  loadProjects(); // 重新渲染，加/去掉 checkbox
+}
+
+function toggleSelectAll(checked) {
+  $$('.batch-cb').forEach(cb => {
+    cb.checked = checked;
+    const id = parseInt(cb.dataset.id);
+    if (checked) window._selectedIds.add(id);
+    else window._selectedIds.delete(id);
+  });
+  updateBatchCount();
+}
+
+function updateBatchCount() {
+  $$('.batch-cb').forEach(cb => {
+    const id = parseInt(cb.dataset.id);
+    if (cb.checked) window._selectedIds.add(id);
+    else window._selectedIds.delete(id);
+  });
+  const cnt = window._selectedIds.size;
+  const el = $('#batchCount');
+  if (el) el.textContent = `已选 ${cnt} 项`;
+  // 全选框状态同步
+  const all = $$('.batch-cb');
+  const selectAllCb = $('#selectAllProjects');
+  if (selectAllCb && all.length > 0) {
+    selectAllCb.indeterminate = cnt > 0 && cnt < all.length;
+    selectAllCb.checked = cnt === all.length;
+  }
+}
+
+async function batchAction(action) {
+  const ids = [...window._selectedIds];
+  if (ids.length === 0) { toast('请先选择项目', 'warn'); return; }
+
+  const actionLabel = { start: '启动', stop: '停止', update: '检测更新', uninstall: '卸载' }[action];
+  if (action === 'uninstall') {
+    if (!confirm(`确定卸载选中的 ${ids.length} 个项目？此操作不可撤销。`)) return;
+  }
+
+  toast(`正在批量${actionLabel} ${ids.length} 个项目...`, 'info');
+  let ok = 0, fail = 0;
+
+  for (const id of ids) {
+    try {
+      if (action === 'start') {
+        await api(`/process/start/${id}`, { method: 'POST' });
+        ok++;
+      } else if (action === 'stop') {
+        await api(`/process/stop/${id}`, { method: 'POST' });
+        ok++;
+      } else if (action === 'update') {
+        // 只检测不自动更新，逐个弹窗太烦，直接触发更新
+        const res = await api(`/deploy/check-update/${id}`);
+        if (res.data.has_update) {
+          await api(`/deploy/update/${id}`, { method: 'POST', body: JSON.stringify({ reinstall: false }) });
+        }
+        ok++;
+      } else if (action === 'uninstall') {
+        await api(`/project/${id}`, { method: 'DELETE' });
+        ok++;
+      }
+    } catch (err) {
+      fail++;
+      logger && logger.warn ? null : console.warn(`Batch ${action} failed for ${id}:`, err.message);
+    }
+  }
+
+  toast(`批量${actionLabel}完成：成功 ${ok}，失败 ${fail}`, ok > 0 ? 'ok' : 'err');
+  window._selectedIds.clear();
+  await loadProjects();
+}
+
+// ============================================
+// AI 故障自愈
+// ============================================
+async function aiAutoHeal(projectId, errorLog) {
+  const healBtn = $(`#healBtn_${projectId}`);
+  if (healBtn) { healBtn.disabled = true; healBtn.textContent = 'AI 分析中...'; }
+  try {
+    const res = await api(`/ai/heal/${projectId}`, {
+      method: 'POST',
+      body: JSON.stringify({ error_log: errorLog }),
+    });
+    const d = res.data;
+    if (!d.suggestion) { toast('AI 未能生成修复建议', 'warn'); return; }
+
+    // 弹出修复建议
+    const modal = $('#healModal');
+    if (!modal) { showHealModalFallback(d); return; }
+    $('#healModalTitle').textContent = `🩺 AI 故障分析 - 项目 #${projectId}`;
+    $('#healModalContent').innerHTML = `
+      <div class="heal-analysis">${d.analysis || ''}</div>
+      <div class="heal-suggestion">
+        <div class="heal-suggestion-title">💡 修复建议</div>
+        <pre class="heal-cmd">${d.suggestion}</pre>
+      </div>
+      ${d.auto_fixable ? `<button class="btn btn-primary" onclick="applyHealFix(${projectId},'${encodeURIComponent(d.fix_command || '')}')">⚡ 一键应用修复</button>` : '<p style="color:var(--text3);font-size:.85rem">此问题需手动处理，请按上方建议操作。</p>'}`;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  } catch (err) {
+    toast('AI 分析失败: ' + err.message, 'err');
+  } finally {
+    if (healBtn) { healBtn.disabled = false; healBtn.textContent = '🩺 AI 修复'; }
+  }
+}
+
+function showHealModalFallback(d) {
+  alert(`AI 故障分析\n\n${d.analysis || ''}\n\n修复建议:\n${d.suggestion}`);
+}
+
+async function applyHealFix(projectId, encodedCmd) {
+  const cmd = decodeURIComponent(encodedCmd);
+  if (!confirm(`即将执行修复命令:\n${cmd}\n\n确认执行？`)) return;
+  try {
+    const res = await api(`/ai/heal/${projectId}/apply`, {
+      method: 'POST',
+      body: JSON.stringify({ fix_command: cmd }),
+    });
+    toast(res.message || '修复命令已执行', 'ok');
+    document.getElementById('healModal')?.classList.add('hidden');
+    await loadProjects();
+  } catch (err) {
+    toast('修复失败: ' + err.message, 'err');
+  }
+}
+
+function closeHealModal() {
+  document.getElementById('healModal')?.classList.add('hidden');
+  document.getElementById('healModal')?.classList.remove('flex');
+}

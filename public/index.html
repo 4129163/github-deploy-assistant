@@ -322,7 +322,22 @@
               <option value="failed">失败</option>
               <option value="stopped">已停止</option>
             </select>
+            <div style="display:flex;gap:.35rem;align-items:center">
+              <input type="checkbox" id="batchModeToggle" onchange="toggleBatchMode(this.checked)" style="cursor:pointer">
+              <label for="batchModeToggle" style="font-size:.82rem;color:var(--text2);cursor:pointer">批量操作</label>
+            </div>
           </div>
+        </div>
+        <!-- 批量操作工具栏 -->
+        <div id="batchToolbar" style="display:none;align-items:center;gap:.5rem;padding:.6rem .85rem;background:var(--primary-light);border-radius:var(--radius);margin-bottom:.75rem;flex-wrap:wrap">
+          <label style="font-size:.82rem;display:flex;align-items:center;gap:.3rem">
+            <input type="checkbox" id="selectAllProjects" onchange="toggleSelectAll(this.checked)"> 全选
+          </label>
+          <span id="batchCount" style="font-size:.82rem;color:var(--primary);font-weight:600">已选 0 项</span>
+          <button class="btn btn-primary btn-sm" onclick="batchAction('start')">▶ 批量启动</button>
+          <button class="btn btn-secondary btn-sm" onclick="batchAction('stop')">⏹ 批量停止</button>
+          <button class="btn btn-ghost btn-sm" onclick="batchAction('update')">🔔 批量检测更新</button>
+          <button class="btn btn-danger btn-sm" onclick="batchAction('uninstall')">🗑 批量卸载</button>
         </div>
         <div id="projectList" class="project-grid"></div>
       </div>
@@ -546,6 +561,17 @@
             </div>
             <div id="tutorialContent"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- AI 故障自愈模态框 -->
+      <div id="healModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:620px;max-height:80vh;overflow-y:auto">
+          <div class="modal-header">
+            <h3 id="healModalTitle">🩺 AI 故障分析</h3>
+            <button class="btn btn-ghost" onclick="closeHealModal()">✕</button>
+          </div>
+          <div id="healModalContent"></div>
         </div>
       </div>
 

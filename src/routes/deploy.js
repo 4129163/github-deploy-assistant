@@ -298,6 +298,47 @@ router.post('/update/:projectId', async (req, res) => {
     await ProjectDB.update(projectId, { updated_at: new Date().toISOString() });
     broadcast('🎉 更新完成！');
 
+    // ── 智能回滚：若项目更新前在运行，重启后健康检查失败则自动回滚 ──
+    const wasRunning = require('../services/process-manager').getProcessStatus(projectId).status === 'running';
+    if (wasRunning && project.health_url || (wasRunning && project.port)) {
+      broadcast('🔍 正在验证新版本健康状态（等待15秒）...');
+      await new Promise(r => setTimeout(r, 15000));
+      const { checkProject } = require('../services/health-checker');
+      const port = require('../services/process-manager').getProcessStatus(projectId).port || project.port;
+      const healthy = await checkProject(projectId, port, project.health_url);
+      if (!healthy) {
+        broadcast('❌ 新版本健康检查失败！正在自动回滚...');
+        // 找最新备份
+        const backupDir = path.join(WORK_DIR, '.backups');
+        const backups = (await fs.readdir(backupDir).catch(() => []))
+          .filter(f => f.startsWith(project.name + '-') && f.endsWith('.tar.gz'))
+          .sort().reverse();
+        if (backups.length > 0) {
+          const latestBackup = backups[0];
+          const backupPath = path.join(backupDir, latestBackup);
+          try {
+            await fs.remove(project.local_path);
+            const { spawn: sp } = require('child_process');
+            await new Promise((resolve, reject) => {
+              const tar = sp('tar', ['-xzf', backupPath, '-C', path.dirname(project.local_path)]);
+              tar.on('close', c => c === 0 ? resolve() : reject(new Error('tar exit ' + c)));
+              tar.on('error', reject);
+            });
+            await ProjectDB.update(projectId, { status: 'rolled_back' });
+            broadcast(`⏪ 已自动回滚到备份: ${latestBackup}`);
+            if (global.broadcast) global.broadcast('auto_rollback', { projectId: String(projectId), backup: latestBackup });
+          } catch (rbErr) {
+            broadcast(`⚠️ 自动回滚失败: ${rbErr.message}，请手动回滚`);
+          }
+        } else {
+          broadcast('⚠️ 未找到可用备份，无法自动回滚，请手动处理');
+        }
+        return res.json({ success: false, auto_rolled_back: true, message: '更新后健康检查失败，已自动回滚' });
+      } else {
+        broadcast('✅ 新版本健康检查通过！');
+      }
+    }
+
     res.json({
       success: true,
       message: summary,
