@@ -998,7 +998,10 @@ function init() {
     $('#envSearch').addEventListener('input', renderEnvList);
   });
   document.querySelector('[data-tab="envcheck"]').addEventListener('click', () => {
-    if (!window._envCheckInited) { window._envCheckInited = true; } // 按需扫描，不自动触发
+    if (!window._envCheckInited) { window._envCheckInited = true; }
+  });
+  document.querySelector('[data-tab="templates"]').addEventListener('click', () => {
+    if (!window._tplInited) { initTemplates(); window._tplInited = true; }
   });
 
   console.log('🚀 GADA initialized');
@@ -2495,4 +2498,173 @@ function switchSwTabToGuide(toolId) {
     const input = $('#envSearch');
     if (input) { input.value = toolId; renderEnvList(); }
   }, 300);
+}
+// ============================================
+// 部署模板
+// ============================================
+let tplData = null;
+let tplCategoryActive = 'all';
+
+async function initTemplates() {
+  show($('#tplLoading'));
+  $('#tplSearch').addEventListener('input', renderTplList);
+  try {
+    const res = await api('/templates/list');
+    tplData = res.data;
+    renderTplCategories(res.data.categories);
+    renderTplList();
+  } catch (err) {
+    toast('加载模板失败: ' + err.message, 'err');
+  } finally {
+    hide($('#tplLoading'));
+  }
+}
+
+function renderTplCategories(categories) {
+  const el = $('#tplCategoryFilter');
+  el.innerHTML = `<button class="sw-tab active" onclick="filterTplCat('all',this)">全部</button>` +
+    categories.map(c => `<button class="sw-tab" onclick="filterTplCat('${c}',this)">${c}</button>`).join('');
+}
+
+function filterTplCat(cat, btn) {
+  tplCategoryActive = cat;
+  $$('#tplCategoryFilter .sw-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTplList();
+}
+
+function renderTplList() {
+  if (!tplData) return;
+  const q = ($('#tplSearch').value || '').toLowerCase();
+  const el = $('#tplList');
+
+  let templates = tplData.templates;
+  if (tplCategoryActive !== 'all') templates = templates.filter(t => t.category === tplCategoryActive);
+  if (q) templates = templates.filter(t =>
+    t.name.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q) ||
+    (t.tags || []).some(tag => tag.toLowerCase().includes(q))
+  );
+
+  if (templates.length === 0) {
+    el.innerHTML = '<p style="color:var(--text3);padding:2rem;text-align:center">没有匹配的模板</p>';
+    return;
+  }
+
+  // 按分类分组
+  const groups = {};
+  templates.forEach(t => { if (!groups[t.category]) groups[t.category] = []; groups[t.category].push(t); });
+
+  el.innerHTML = Object.entries(groups).map(([cat, items]) =>
+    `<div class="envg-group">
+      <div class="sw-group-title">${cat}</div>
+      <div class="tpl-grid">${items.map(tplCard).join('')}</div>
+    </div>`
+  ).join('');
+}
+
+function tplCard(t) {
+  const verifiedBadge = t.verified ? '<span class="tpl-badge verified">✅ 已验证</span>' : '';
+  const customBadge = t.source === 'custom' ? '<span class="tpl-badge custom">📦 自定义</span>' : '';
+  const tags = (t.tags || []).slice(0, 3).map(tag => `<span class="env-os-tag">${tag}</span>`).join('');
+  const envWarning = (t.env_vars || []).filter(e => e.required).length > 0
+    ? `<div style="font-size:.75rem;color:#eab308;margin-top:.3rem">⚠️ 需配置 ${(t.env_vars||[]).filter(e=>e.required).length} 个必填环境变量</div>` : '';
+
+  return `
+    <div class="tpl-card">
+      <div class="tpl-card-top">
+        <span class="envg-icon">${t.icon || '📦'}</span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
+            <span class="envg-name">${t.name}</span>
+            ${verifiedBadge}${customBadge}
+          </div>
+          <div class="envg-cat">${t.category}</div>
+        </div>
+        ${t.stars ? `<span style="font-size:.78rem;color:var(--text3)">⭐ ${t.stars}</span>` : ''}
+      </div>
+      <div class="envg-desc">${t.desc}</div>
+      ${envWarning}
+      ${t.notes ? `<div style="font-size:.75rem;color:var(--text3);margin-top:.2rem">💡 ${t.notes}</div>` : ''}
+      <div class="envg-os" style="margin-top:.4rem">${tags}</div>
+      <div class="tpl-card-footer">
+        <a href="${t.repo_url}" target="_blank" class="btn btn-ghost btn-sm">🔗 仓库</a>
+        ${t.readme_url ? `<a href="${t.readme_url}" target="_blank" class="btn btn-ghost btn-sm">📖 文档</a>` : ''}
+        <button class="btn btn-primary btn-sm" onclick="deployFromTemplate('${t.id}')">🚀 一键部署</button>
+        ${t.source === 'custom' ? `<button class="btn btn-danger btn-sm" onclick="deleteCustomTemplate('${t.id}')">🗑</button>` : ''}
+      </div>
+    </div>`;
+}
+
+async function deployFromTemplate(templateId) {
+  try {
+    const res = await api(`/templates/${templateId}/deploy`, { method: 'POST' });
+    const tpl = res.data.template;
+
+    // 切换到首页，填入 URL，触发分析+部署
+    document.querySelector('[data-tab="home"]').click();
+    await new Promise(r => setTimeout(r, 200));
+    $('#repoUrl').value = tpl.repo_url;
+    toast(`已选用模板「${tpl.name}」，正在分析仓库...`, 'info');
+    await analyzeRepo();
+  } catch (err) {
+    toast('模板部署失败: ' + err.message, 'err');
+  }
+}
+
+async function showExportTemplateModal() {
+  // 加载已部署项目列表
+  try {
+    const res = await api('/project');
+    const deployed = (res.data || []).filter(p => ['deployed','running'].includes(p.status));
+    const sel = $('#exportTplProject');
+    sel.innerHTML = deployed.length
+      ? deployed.map(p => `<option value="${p.id}">${p.name} (${p.status})</option>`).join('')
+      : '<option value="">暂无已部署项目</option>';
+    const modal = $('#exportTplModal');
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+  } catch (err) {
+    toast('加载项目失败: ' + err.message, 'err');
+  }
+}
+
+function closeExportTplModal() {
+  $('#exportTplModal').classList.add('hidden');
+  $('#exportTplModal').classList.remove('flex');
+}
+
+async function doExportTemplate() {
+  const projectId = $('#exportTplProject').value;
+  const templateName = $('#exportTplName').value.trim();
+  const category = $('#exportTplCategory').value.trim() || '我的模板';
+  const desc = $('#exportTplDesc').value.trim();
+  if (!projectId || !templateName) { toast('请选择项目并填写模板名称', 'warn'); return; }
+  try {
+    const res = await api('/templates/export', {
+      method: 'POST',
+      body: JSON.stringify({ projectId, templateName, category, desc }),
+    });
+    toast(res.message || '模板已导出', 'ok');
+    closeExportTplModal();
+    // 刷新模板列表
+    const listRes = await api('/templates/list');
+    tplData = listRes.data;
+    renderTplCategories(listRes.data.categories);
+    renderTplList();
+  } catch (err) {
+    toast('导出失败: ' + err.message, 'err');
+  }
+}
+
+async function deleteCustomTemplate(id) {
+  if (!confirm('删除此自定义模板？')) return;
+  try {
+    await api(`/templates/custom/${id}`, { method: 'DELETE' });
+    toast('模板已删除', 'ok');
+    const res = await api('/templates/list');
+    tplData = res.data;
+    renderTplCategories(res.data.categories);
+    renderTplList();
+  } catch (err) {
+    toast('删除失败: ' + err.message, 'err');
+  }
 }

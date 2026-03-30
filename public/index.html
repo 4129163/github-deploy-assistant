@@ -53,6 +53,9 @@
         <button class="nav-item" data-tab="envcheck">
           <span class="nav-icon">🔧</span><span class="nav-label">环境检测</span>
         </button>
+        <button class="nav-item" data-tab="templates">
+          <span class="nav-icon">📋</span><span class="nav-label">部署模板</span>
+        </button>
       </div>
       <div class="nav-divider"></div>
       <div class="nav-group">
@@ -602,6 +605,57 @@
         <div id="envCheckResult" style="display:none">
           <div id="envCheckSummary" style="margin-bottom:1rem"></div>
           <div id="envCheckList"></div>
+        </div>
+      </div>
+
+      <!-- ========== 部署模板 ========== -->
+      <div id="templates" class="tab hidden">
+        <div class="tab-header">
+          <h2>📋 部署模板</h2>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="showExportTemplateModal()">📤 导出我的项目为模板</button>
+          </div>
+        </div>
+
+        <!-- 搜索 + 分类 -->
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+          <input id="tplSearch" type="text" class="input" placeholder="搜索模板..." style="max-width:240px">
+          <div id="tplCategoryFilter" style="display:flex;gap:.35rem;flex-wrap:wrap"></div>
+        </div>
+
+        <div id="tplLoading" class="search-loading hidden">
+          <div class="spinner"></div><span>加载模板...</span>
+        </div>
+
+        <div id="tplList"></div>
+
+        <!-- 导出模板弹窗 -->
+        <div id="exportTplModal" class="modal-overlay hidden">
+          <div class="modal-box" style="max-width:480px">
+            <div class="modal-header">
+              <h3>📤 导出部署模板</h3>
+              <button class="btn btn-ghost" onclick="closeExportTplModal()">✕</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.75rem">
+              <div>
+                <label style="font-size:.85rem;color:var(--text2)">选择已部署的项目</label>
+                <select id="exportTplProject" class="input" style="width:100%;margin-top:.3rem"></select>
+              </div>
+              <div>
+                <label style="font-size:.85rem;color:var(--text2)">模板名称</label>
+                <input id="exportTplName" type="text" class="input" placeholder="例：我的 ChatGPT 配置" style="width:100%;margin-top:.3rem">
+              </div>
+              <div>
+                <label style="font-size:.85rem;color:var(--text2)">分类</label>
+                <input id="exportTplCategory" type="text" class="input" placeholder="例：AI / 工具" value="我的模板" style="width:100%;margin-top:.3rem">
+              </div>
+              <div>
+                <label style="font-size:.85rem;color:var(--text2)">描述（可选）</label>
+                <input id="exportTplDesc" type="text" class="input" placeholder="简单描述一下这个配置" style="width:100%;margin-top:.3rem">
+              </div>
+              <button class="btn btn-primary" onclick="doExportTemplate()">📤 导出模板</button>
+            </div>
+          </div>
         </div>
       </div>
 

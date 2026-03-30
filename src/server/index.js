@@ -139,6 +139,8 @@ const envguideRoutes = require('../routes/envguide');
 app.use('/api/envguide', envguideRoutes);
 const envRoutes = require('../routes/env');
 app.use('/api/env', envRoutes);
+const templatesRoutes = require('../routes/templates');
+app.use('/api/templates', templatesRoutes);
 
 // 全身自检接口
 app.get('/api/selfcheck', async (req, res) => {

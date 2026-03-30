@@ -860,3 +860,24 @@ label .input { color: var(--text); }
 
 /* ====== 批量操作 ====== */
 .batch-cb { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+
+/* ====== 部署模板 ====== */
+.tpl-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: .85rem; margin-bottom: .5rem;
+}
+.tpl-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem; display: flex; flex-direction: column; gap: .45rem;
+  transition: var(--transition);
+}
+.tpl-card:hover { border-color: var(--primary); box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.tpl-card-top { display: flex; gap: .6rem; align-items: flex-start; }
+.tpl-card-footer { display: flex; gap: .4rem; margin-top: auto; flex-wrap: wrap; }
+.tpl-badge {
+  font-size: .68rem; padding: .1rem .45rem; border-radius: 10px; font-weight: 600;
+}
+.tpl-badge.verified { background: #f0fdf4; color: #16a34a; }
+.tpl-badge.custom { background: var(--primary-light); color: var(--primary); }
+
+@media (max-width: 900px) { .tpl-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .tpl-grid { grid-template-columns: 1fr; } }
