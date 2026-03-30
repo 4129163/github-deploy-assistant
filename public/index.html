@@ -38,6 +38,9 @@
         <button class="nav-item" data-tab="scan">
           <span class="nav-icon">🔍</span><span class="nav-label">扫描发现</span>
         </button>
+        <button class="nav-item" data-tab="search">
+          <span class="nav-icon">🌐</span><span class="nav-label">搜索项目</span>
+        </button>
       </div>
       <div class="nav-divider"></div>
       <div class="nav-group">
@@ -352,7 +355,80 @@
         </div>
       </div>
 
-      <!-- ========== AI 设置 ========== -->
+      <!-- ========== 搜索项目 ========== -->
+      <div id="search" class="tab hidden">
+        <div class="tab-header">
+          <h2>🌐 搜索 GitHub 项目</h2>
+        </div>
+
+        <!-- 搜索框 -->
+        <div class="search-box-wrap">
+          <div class="search-input-row">
+            <input id="searchQuery" type="text" class="input search-main-input"
+              placeholder="用自然语言描述你想找的项目，例如：帮我找一个好用的 Telegram 机器人框架" />
+            <button id="searchSubmitBtn" class="btn btn-primary">🔍 搜索</button>
+          </div>
+          <div class="search-examples">
+            <span style="font-size:.8rem;color:var(--text3)">试试：</span>
+            <span class="search-chip" data-q="本地运行大语言模型">本地运行大语言模型</span>
+            <span class="search-chip" data-q="自托管密码管理器">自托管密码管理器</span>
+            <span class="search-chip" data-q="Discord 机器人框架 Python">Discord 机器人 Python</span>
+            <span class="search-chip" data-q="轻量级笔记应用 自托管">自托管笔记应用</span>
+            <span class="search-chip" data-q="AI 图片生成 本地">AI 图片生成本地</span>
+          </div>
+        </div>
+
+        <!-- 搜索结果 -->
+        <div id="searchLoading" class="search-loading hidden">
+          <div class="spinner"></div><span>正在搜索并分析，请稍候...</span>
+        </div>
+        <div id="searchResult" class="search-result-wrap hidden">
+          <!-- AI 分析说明 -->
+          <div class="search-analysis-card">
+            <div class="search-analysis-header">
+              <span>📊 搜索分析</span>
+              <div style="display:flex;gap:.5rem">
+                <button id="exportCsvBtn" class="btn btn-secondary btn-sm">⬇️ 导出 CSV</button>
+                <button id="exportMdBtn" class="btn btn-secondary btn-sm">📄 导出 Markdown</button>
+                <button id="saveRecordBtn" class="btn btn-primary btn-sm">💾 保存记录</button>
+              </div>
+            </div>
+            <div id="searchSummary" class="search-summary"></div>
+            <div id="searchRecommendation" class="search-recommendation"></div>
+          </div>
+
+          <!-- 筛选栏 -->
+          <div class="search-filter-bar">
+            <select id="filterType" class="input input-sm"><option value="">全部类型</option></select>
+            <select id="filterLang" class="input input-sm"><option value="">全部语言</option></select>
+            <select id="filterPlatform" class="input input-sm"><option value="">全部平台</option></select>
+            <select id="filterActivity" class="input input-sm"><option value="">全部活跃度</option></select>
+            <select id="filterMaturity" class="input input-sm"><option value="">全部成熟度</option></select>
+            <button id="filterResetBtn" class="btn btn-ghost btn-sm">重置</button>
+          </div>
+
+          <!-- 结果表格 -->
+          <div class="search-table-wrap">
+            <table class="search-table" id="searchTable">
+              <thead>
+                <tr>
+                  <th>#</th><th>项目名</th><th>⭐</th><th>语言</th>
+                  <th>类型</th><th>平台</th><th>活跃度</th><th>场景</th><th>成熟度</th><th>描述</th><th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="searchTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 搜索历史 -->
+        <div class="section-gap"></div>
+        <div class="search-history-header">
+          <h3 class="section-title">🕑 搜索历史</h3>
+          <button id="refreshHistoryBtn" class="btn btn-ghost btn-sm">刷新</button>
+        </div>
+        <div id="searchHistoryList" class="search-history-list"></div>
+      </div>
       <div id="ai" class="tab hidden">
         <!-- 一键粘贴区 -->
         <div class="quick-paste-card">

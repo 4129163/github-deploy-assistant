@@ -129,6 +129,8 @@ app.use('/api/system', systemRoutes);
 app.use('/api/scan', scanRoutes);
 const settingsRoutes = require('../routes/settings');
 app.use('/api/settings', settingsRoutes);
+const searchRoutes = require('../routes/search');
+app.use('/api/search', searchRoutes);
 
 // 全身自检接口
 app.get('/api/selfcheck', async (req, res) => {

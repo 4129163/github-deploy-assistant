@@ -871,6 +871,10 @@ function init() {
   // 加载近期项目（首页展示）
   loadRecentProjects();
   initRecommend();
+  // search tab init happens on tab switch
+  document.querySelector('[data-tab="search"]').addEventListener('click', () => {
+    if (!window._searchInited) { initSearch(); window._searchInited = true; }
+  });
 
   console.log('🚀 GADA initialized');
 }
@@ -1241,4 +1245,208 @@ function initRecommend() {
     recShuffleOffset++;
     renderRecommend();
   });
+}
+// ============================================
+// 自然语言搜索
+// ============================================
+let currentSearchId = null;
+let currentSearchRepos = [];
+let filteredRepos = [];
+
+async function initSearch() {
+  $('#searchSubmitBtn').addEventListener('click', doSearch);
+  $('#searchQuery').addEventListener('keypress', e => { if (e.key === 'Enter') doSearch(); });
+  document.querySelectorAll('.search-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      $('#searchQuery').value = chip.dataset.q;
+      doSearch();
+    });
+  });
+  $('#filterType').addEventListener('change', applyFilters);
+  $('#filterLang').addEventListener('change', applyFilters);
+  $('#filterPlatform').addEventListener('change', applyFilters);
+  $('#filterActivity').addEventListener('change', applyFilters);
+  $('#filterMaturity').addEventListener('change', applyFilters);
+  $('#filterResetBtn').addEventListener('click', resetFilters);
+  $('#exportCsvBtn').addEventListener('click', () => exportSearch('csv'));
+  $('#exportMdBtn').addEventListener('click', () => exportSearch('md'));
+  $('#saveRecordBtn').addEventListener('click', saveSearchRecord);
+  $('#refreshHistoryBtn').addEventListener('click', loadSearchHistory);
+  loadSearchHistory();
+}
+
+async function doSearch() {
+  const query = $('#searchQuery').value.trim();
+  if (!query) { toast('请输入搜索内容', 'warn'); return; }
+  const loading = $('#searchLoading');
+  const result = $('#searchResult');
+  show(loading); hide(result);
+  const btn = $('#searchSubmitBtn');
+  btn.disabled = true; btn.textContent = '搜索中...';
+  try {
+    const res = await api('/search/query', {
+      method: 'POST',
+      body: JSON.stringify({ query, maxResults: 20 }),
+    });
+    const data = res.data;
+    currentSearchId = data.id;
+    currentSearchRepos = data.repos || [];
+    filteredRepos = [...currentSearchRepos];
+    $('#searchSummary').innerHTML = `<p>${data.summary || ''}</p>`;
+    $('#searchRecommendation').innerHTML = data.recommendation
+      ? `<div class="search-rec-box"><span class="search-rec-label">🏆 智能推荐</span>${data.recommendation}</div>` : '';
+    buildFilterOptions(currentSearchRepos);
+    renderSearchTable(filteredRepos);
+    hide(loading); show(result);
+    loadSearchHistory();
+    toast('搜索完成，共 ' + currentSearchRepos.length + ' 个结果', 'ok');
+  } catch (err) {
+    hide(loading);
+    toast('搜索失败: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '🔍 搜索';
+  }
+}
+
+function buildFilterOptions(repos) {
+  const types = [...new Set(repos.map(r => r.category_type).filter(Boolean))];
+  const langs = [...new Set(repos.map(r => r.tech_stack || r.language).filter(Boolean))];
+  const platforms = [...new Set(repos.flatMap(r => (r.platform_support || '').split('/').map(p => p.trim())).filter(Boolean))];
+  const activities = [...new Set(repos.map(r => r.activity).filter(Boolean))];
+  const maturities = [...new Set(repos.map(r => r.maturity).filter(Boolean))];
+  const fill = (id, opts, label) => {
+    const el = $(id); const cur = el.value;
+    el.innerHTML = `<option value="">全部${label}</option>` + opts.map(o => `<option value="${o}">${o}</option>`).join('');
+    if (opts.includes(cur)) el.value = cur;
+  };
+  fill('#filterType', types, '类型');
+  fill('#filterLang', langs, '语言');
+  fill('#filterPlatform', platforms, '平台');
+  fill('#filterActivity', activities, '活跃度');
+  fill('#filterMaturity', maturities, '成熟度');
+}
+
+function applyFilters() {
+  const type = $('#filterType').value;
+  const lang = $('#filterLang').value;
+  const platform = $('#filterPlatform').value;
+  const activity = $('#filterActivity').value;
+  const maturity = $('#filterMaturity').value;
+  filteredRepos = currentSearchRepos.filter(r => {
+    if (type && r.category_type !== type) return false;
+    if (lang && (r.tech_stack || r.language) !== lang) return false;
+    if (platform && !(r.platform_support || '').includes(platform)) return false;
+    if (activity && r.activity !== activity) return false;
+    if (maturity && r.maturity !== maturity) return false;
+    return true;
+  });
+  renderSearchTable(filteredRepos);
+}
+
+function resetFilters() {
+  ['#filterType','#filterLang','#filterPlatform','#filterActivity','#filterMaturity'].forEach(id => $(id).value = '');
+  filteredRepos = [...currentSearchRepos];
+  renderSearchTable(filteredRepos);
+}
+
+const actColor = { '活跃':'#22c55e', '维护中':'#eab308', '停滞/归档':'#ef4444' };
+const matBadge = { '生产可用':'✅', '实验性/个人项目':'🧪' };
+
+function renderSearchTable(repos) {
+  const tbody = $('#searchTableBody');
+  if (!tbody) return;
+  if (repos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:2rem">暂无匹配结果</td></tr>';
+    return;
+  }
+  tbody.innerHTML = repos.map((r, i) => `
+    <tr>
+      <td style="color:var(--text3)">${i+1}</td>
+      <td><a href="${r.url}" target="_blank" class="search-link">${r.name}</a></td>
+      <td style="white-space:nowrap">⭐ ${r.stars.toLocaleString()}</td>
+      <td>${r.tech_stack || r.language || '-'}</td>
+      <td><span class="tag">${r.category_type || '-'}</span></td>
+      <td style="font-size:.8rem">${r.platform_support || '-'}</td>
+      <td><span style="color:${actColor[r.activity]||'inherit'};font-size:.8rem">${r.activity || '-'}</span></td>
+      <td style="font-size:.8rem">${r.scenario || '-'}</td>
+      <td style="font-size:.8rem">${matBadge[r.maturity] || ''} ${r.maturity || '-'}</td>
+      <td class="search-desc" title="${r.description}">${(r.description||'').slice(0,50)}${r.description&&r.description.length>50?'...':''}</td>
+      <td><button class="btn btn-primary btn-sm" onclick="deployFromSearch('${r.url}')">部署</button></td>
+    </tr>`).join('');
+}
+
+function deployFromSearch(url) {
+  document.querySelector('[data-tab="home"]').click();
+  setTimeout(() => { $('#repoUrl').value = url; $('#analyzeBtn').click(); }, 200);
+}
+
+async function exportSearch(fmt) {
+  if (!currentSearchId) { toast('暂无搜索结果', 'warn'); return; }
+  try {
+    const url = `/api/search/export/${currentSearchId}?fmt=${fmt}`;
+    const a = document.createElement('a');
+    a.href = url; a.download = `search_${currentSearchId}.${fmt === 'csv' ? 'csv' : 'md'}`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    toast('导出成功', 'ok');
+  } catch (err) { toast('导出失败: ' + err.message, 'err'); }
+}
+
+function saveSearchRecord() {
+  if (!currentSearchId) { toast('暂无搜索结果', 'warn'); return; }
+  toast('记录已自动保存到 search-records/ 目录', 'ok');
+}
+
+async function loadSearchHistory() {
+  const list = $('#searchHistoryList');
+  if (!list) return;
+  try {
+    const res = await api('/search/history');
+    const items = res.data || [];
+    if (items.length === 0) {
+      list.innerHTML = '<p style="color:var(--text3);font-size:.85rem">暂无搜索历史</p>';
+      return;
+    }
+    list.innerHTML = items.map(item => `
+      <div class="history-item">
+        <div class="history-item-main" onclick="loadHistoryRecord(${item.id})">
+          <span class="history-query">${item.query}</span>
+          <span class="history-meta">${item.created_at ? new Date(item.created_at).toLocaleString('zh-CN') : ''}</span>
+        </div>
+        <div class="history-item-actions">
+          <a href="/api/search/export/${item.id}?fmt=csv" download class="btn btn-ghost btn-sm">CSV</a>
+          <a href="/api/search/export/${item.id}?fmt=md" download class="btn btn-ghost btn-sm">MD</a>
+          <button class="btn btn-danger btn-sm" onclick="deleteHistoryRecord(${item.id})">删除</button>
+        </div>
+        ${item.save_path ? `<div class="history-save-path">💾 已保存至：${item.save_path}</div>` : ''}
+      </div>`).join('');
+  } catch (err) {
+    list.innerHTML = '<p style="color:var(--text3);font-size:.85rem">加载历史失败</p>';
+  }
+}
+
+async function loadHistoryRecord(id) {
+  try {
+    const res = await api('/search/history/' + id);
+    const data = res.data;
+    currentSearchId = data.id;
+    currentSearchRepos = data.repos || [];
+    filteredRepos = [...currentSearchRepos];
+    $('#searchQuery').value = data.query || '';
+    $('#searchSummary').innerHTML = `<p>${data.summary || ''}</p>`;
+    $('#searchRecommendation').innerHTML = data.recommendation
+      ? `<div class="search-rec-box"><span class="search-rec-label">🏆 智能推荐</span>${data.recommendation}</div>` : '';
+    buildFilterOptions(currentSearchRepos);
+    renderSearchTable(filteredRepos);
+    show($('#searchResult'));
+    toast('已加载历史记录', 'ok');
+  } catch (err) { toast('加载失败: ' + err.message, 'err'); }
+}
+
+async function deleteHistoryRecord(id) {
+  if (!confirm('确定删除这条搜索记录？')) return;
+  try {
+    await api('/search/history/' + id, { method: 'DELETE' });
+    toast('已删除', 'ok');
+    loadSearchHistory();
+  } catch (err) { toast('删除失败: ' + err.message, 'err'); }
 }
