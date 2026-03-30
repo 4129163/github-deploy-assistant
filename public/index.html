@@ -831,8 +831,10 @@
         </div>
         <p class="hint">为部署成功的项目生成分享链接，朋友无需安装即可查看配置和复现步骤。</p>
 
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:900px">
+
         <!-- 创建分享 -->
-        <div class="card" style="max-width:580px;margin-bottom:1.5rem">
+        <div class="card">
           <h3 style="margin-bottom:.85rem">📤 生成分享链接</h3>
           <label>选择项目
             <select id="shareProjectSelect" class="input" style="margin-top:.35rem"></select>
@@ -866,14 +868,18 @@
         </div>
 
         <!-- 已有分享列表 -->
-        <h3 style="margin-bottom:.75rem">📋 已创建的分享</h3>
-        <div style="margin-bottom:.75rem;display:flex;gap:.5rem">
-          <select id="shareListProjectSelect" class="input" style="width:auto">
-            <option value="">选择项目查看</option>
-          </select>
-          <button class="btn btn-secondary btn-sm" onclick="loadShareList()">查看</button>
+        <div class="card">
+          <h3 style="margin-bottom:.75rem">📋 已创建的分享</h3>
+          <div style="margin-bottom:.75rem;display:flex;gap:.5rem">
+            <select id="shareListProjectSelect" class="input" style="width:auto">
+              <option value="">选择项目查看</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="loadShareList()">查看</button>
+          </div>
+          <div id="shareList"></div>
         </div>
-        <div id="shareList"></div>
+
+        </div><!-- end grid -->
       </div>
 
       <!-- ========== 远程部署（功能26）========== -->
