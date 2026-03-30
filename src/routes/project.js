@@ -334,4 +334,51 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+/**
+ * 扫描 workspace 孤儿目录（有目录但数据库无记录）
+ * GET /api/project/orphans
+ */
+router.get('/orphans', async (req, res) => {
+  try {
+    const { WORK_DIR } = require('../config');
+    const { promisify } = require('util');
+    const execAsync = promisify(require('child_process').exec);
+    const allDirs = await fs.readdir(WORK_DIR).catch(() => []);
+    const projects = await ProjectDB.getAll();
+    const knownPaths = new Set(projects.map(p => path.basename(p.local_path || '')));
+    const orphans = [];
+    for (const dir of allDirs) {
+      if (dir.startsWith('.')) continue;
+      const full = path.join(WORK_DIR, dir);
+      const stat = await fs.stat(full).catch(() => null);
+      if (!stat?.isDirectory()) continue;
+      if (!knownPaths.has(dir)) {
+        let size = '?';
+        try { const r = await execAsync(`du -sh "${full}" 2>/dev/null`); size = r.stdout.split('\t')[0]; } catch (_) {}
+        orphans.push({ name: dir, path: full, size: size.trim() });
+      }
+    }
+    res.json({ success: true, data: orphans });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * 删除孤儿目录
+ * DELETE /api/project/orphans/:name
+ */
+router.delete('/orphans/:name', async (req, res) => {
+  try {
+    const { WORK_DIR } = require('../config');
+    const name = path.basename(req.params.name);
+    const full = path.join(WORK_DIR, name);
+    if (!full.startsWith(path.resolve(WORK_DIR))) return res.status(403).json({ error: '非法路径' });
+    await fs.remove(full);
+    res.json({ success: true, message: `已删除孤儿目录: ${name}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

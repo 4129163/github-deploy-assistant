@@ -235,6 +235,15 @@ router.post('/update/:projectId', async (req, res) => {
     // 1. 暂存本地改动（如果有）
     const status = await git.status();
     const hasLocalChanges = status.files.length > 0;
+
+    // 备份 .env 文件（更新前保存，防止被覆盖）
+    const envFile = path.join(project.local_path, '.env');
+    let envBackup = null;
+    if (await fs.pathExists(envFile)) {
+      envBackup = await fs.readFile(envFile, 'utf8');
+      broadcast('🔒 已备份 .env 文件');
+    }
+
     if (hasLocalChanges) {
       broadcast('📦 检测到本地改动，暂存中...');
       await git.stash();
@@ -253,6 +262,15 @@ router.post('/update/:projectId', async (req, res) => {
       catch (_) { broadcast('⚠️ 本地改动恢复失败（可能有冲突），请手动处理'); }
     }
 
+    // 恢复 .env 文件（如果被 git pull 覆盖）
+    if (envBackup !== null) {
+      const envNow = await fs.pathExists(envFile) ? await fs.readFile(envFile, 'utf8') : null;
+      if (envNow !== envBackup) {
+        await fs.writeFile(envFile, envBackup, 'utf8');
+        broadcast('🔒 .env 文件已恢复（防止被 git pull 覆盖）');
+      }
+    }
+
     // 4. 判断是否需要重新安装依赖
     const types = (project.project_type || '').split(',');
     let depsUpdated = false;
@@ -263,7 +281,7 @@ router.post('/update/:projectId', async (req, res) => {
     if (types.includes('nodejs') && needsNpmInstall) {
       broadcast('📦 package.json 有变化，重新安装依赖...');
       const { executeCommand } = require('../services/deploy');
-      await executeCommand('npm install', project.local_path);
+      await executeCommand('npm install --ignore-scripts', project.local_path);
       depsUpdated = true;
       broadcast('✅ 依赖安装完成');
     }

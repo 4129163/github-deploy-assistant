@@ -79,7 +79,8 @@ async function startProject(project, onLog) {
       }
     } catch (_) {}
     log(`启动命令: ${startCmd} ${startArgs.join(' ')}`);
-    child = spawn(startCmd, startArgs, { cwd: local_path, env, detached: false });
+    child = spawn(startCmd, startArgs, { cwd: local_path, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    child.unref(); // 允许父进程退出而不等子进程
 
   } else if (types.includes('python')) {
     // Windows 上 venv 路径不同
@@ -92,14 +93,16 @@ async function startProject(project, onLog) {
       if (await fs.pathExists(path.join(local_path, f))) { entry = f; break; }
     }
     log(`启动命令: ${pythonCmd} ${entry}`);
-    child = spawn(pythonCmd, [entry], { cwd: local_path, env, detached: false });
+    child = spawn(pythonCmd, [entry], { cwd: local_path, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    child.unref();
 
   } else if (types.includes('docker')) {
     log('检测到 Docker 项目，尝试 docker compose up...');
     const hasCompose = await fs.pathExists(path.join(local_path, 'docker-compose.yml'))
       || await fs.pathExists(path.join(local_path, 'docker-compose.yaml'));
     if (!hasCompose) throw new Error('未找到 docker-compose.yml');
-    child = spawn('docker', ['compose', 'up'], { cwd: local_path, env, detached: false });
+    child = spawn('docker', ['compose', 'up'], { cwd: local_path, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    child.unref();
 
   } else {
     throw new Error(`不支持自动启动此项目类型: ${types.join(',') || '未知'}。请手动进入项目目录启动。`);
@@ -145,16 +148,31 @@ async function stopProject(projectId) {
   if (!proc || proc.status !== 'running') {
     throw new Error('项目未在运行');
   }
-  proc.process.kill('SIGTERM');
-  // 给 3 秒宽限，之后强杀
+
+  // 标记为停止（防止 close 事件重复处理）
+  proc.status = 'stopped';
+
+  // 尝试杀进程树（整个进程组），避免孤儿进程
+  const tryKillGroup = (signal) => {
+    try {
+      // 负 pid = 杀整个进程组（Linux/macOS）
+      if (proc.process.pid) process.kill(-proc.process.pid, signal);
+    } catch (_) {
+      // 进程组不存在时，退化到只杀父进程
+      try { proc.process.kill(signal); } catch (__) {}
+    }
+  };
+
+  tryKillGroup('SIGTERM');
+
+  // 3 秒后强杀（进程组 + 父进程）
   setTimeout(() => {
     try {
-      if (runningProcesses[String(projectId)]?.status === 'running') {
-        proc.process.kill('SIGKILL');
-      }
+      if (runningProcesses[String(projectId)]?.status !== 'running') return;
+      tryKillGroup('SIGKILL');
     } catch (_) {}
   }, 3000);
-  proc.status = 'stopped';
+
   logger.info(`Project ${projectId} stopped (PID: ${proc.pid})`);
   return true;
 }
