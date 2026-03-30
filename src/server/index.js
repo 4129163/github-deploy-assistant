@@ -34,6 +34,11 @@ const configRoutes = require('../routes/config');
 const processRoutes = require('../routes/process');
 const systemRoutes = require('../routes/system');
 const scanRoutes = require('../routes/scan');
+// 新功能路由
+const shareRoutes = require('../routes/share');           // 功能19：一键分享部署记录
+const remoteRoutes = require('../routes/remote');         // 功能26：远程主机部署
+const webhookEnhancedRoutes = require('../routes/webhook-enhanced'); // 功能35：事件驱动 Webhook
+const privateRoutes = require('../routes/private');       // 功能40：私有仓库支持
 
 // 创建 Express 应用
 const app = express();
@@ -159,6 +164,12 @@ const monitorRoutes = require('../routes/monitor');
 app.use('/api/monitor', monitorRoutes);
 const networkOptRoutes = require('../routes/network-opt');
 app.use('/api/network-opt', networkOptRoutes);
+
+// 新功能路由挂载
+app.use('/api/share', shareRoutes);               // 功能19：一键分享部署记录
+app.use('/api/remote', remoteRoutes);             // 功能26：远程主机部署
+app.use('/api/webhookx', webhookEnhancedRoutes);  // 功能35：事件驱动 Webhook（GitHub/GitLab）
+app.use('/api/private', privateRoutes);           // 功能40：私有仓库支持
 
 // 全身自检接口
 app.get('/api/selfcheck', async (req, res) => {

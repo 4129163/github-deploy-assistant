@@ -142,6 +142,97 @@ npm start
 
 ---
 
+## 🆕 新功能（v1.1.0）
+
+### 19. 一键分享部署记录
+
+部署成功后，可生成分享链接，朋友无需安装即可查看你的部署配置和复现步骤。
+
+```
+POST /api/share/create/:projectId
+→ 返回分享链接，有效期可自定义（默认72小时）
+
+GET  /api/share/view/:token
+→ 公开查看分享内容（项目信息 + 复现步骤 + 部署日志摘要）
+```
+
+分享内容包含：项目地址、类型、部署步骤（克隆 → 安装依赖 → 启动），方便他人一键复现。
+
+---
+
+### 26. 多环境支持：远程主机部署
+
+支持通过 SSH 将项目部署到树莓派、云服务器（腾讯云/阿里云/VPS）等远程主机。
+
+**支持：**
+- 密码或 SSH 私钥两种认证方式
+- 自动 git clone / git pull
+- 自动识别项目类型（Node.js/Python/Docker/Go）并安装
+- Node.js 项目自动使用 pm2 守护进程
+- 测试连接、查看主机列表
+
+```bash
+# 先在 GADA 中添加远程主机（界面或 API）
+POST /api/remote/hosts
+  { name, host, port, username, password/privateKey, type }
+
+# 测试连接
+POST /api/remote/hosts/:hostId/test
+
+# 远程部署
+POST /api/remote/deploy/:projectId
+  { hostId }
+```
+
+---
+
+### 35. 事件驱动：Webhook 流水线（GitHub & GitLab）
+
+比原有 Webhook 更强，支持：
+- **GitHub**：push、release、workflow_run 事件，HMAC-SHA256 签名验证
+- **GitLab**：push、tag_push、pipeline 事件，Token 验证
+- **分支过滤**：只响应指定分支（如仅 `main`）
+- **事件过滤**：只响应指定事件类型
+- 触发后自动 git pull + 重启运行中的服务
+
+```bash
+# 生成 Webhook 配置（含 Secret）
+GET /api/webhookx/setup/:projectId?provider=github&branches=main&events=push,release
+
+# 接收事件端点（填入 GitHub/GitLab 配置）
+POST /api/webhookx/receive/:token
+
+# 更新过滤规则
+PATCH /api/webhookx/config/:projectId
+```
+
+---
+
+### 40. 私有仓库支持
+
+通过 Personal Access Token (PAT) 克隆 GitHub/GitLab 私有仓库。Token 在本地 **AES-256-GCM 加密存储**，不明文暴露。
+
+**使用方法：**
+
+1. 在 GitHub → Settings → Developer settings → Personal access tokens 生成 Token（勾选 `repo` 权限）
+2. 在 GADA 中保存 Token
+3. 克隆时选择该 Token，其余流程与公开仓库完全相同
+
+```bash
+# 保存 Token（加密存储）
+POST /api/private/tokens
+  { name: "我的 GitHub PAT", token: "ghp_xxx", provider: "github" }
+
+# 验证 Token 有效性
+POST /api/private/tokens/:tokenId/validate
+
+# 克隆私有仓库
+POST /api/private/clone
+  { repoUrl: "https://github.com/user/private-repo", tokenId: "tok_xxx" }
+```
+
+---
+
 ## 🤖 配置 AI
 
 AI 功能用于智能分析项目、生成部署方案、回答问题。**不配置也能用**，只是没有 AI 分析。
