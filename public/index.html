@@ -398,6 +398,7 @@
           <h2>🖥️ 系统状态</h2>
           <div style="display:flex;gap:.5rem;flex-wrap:wrap">
             <button id="selfCheckBtn" class="btn btn-primary btn-sm">🩺 全身自检</button>
+        <button class="btn btn-ghost" id="selfUpdateBtn" onclick="checkSelfUpdate()">🔍 检测 GADA 更新</button>
             <button class="btn btn-ghost btn-sm" onclick="checkNetworkAndAI()">🌐 网络检测</button>
             <button class="btn btn-ghost btn-sm" onclick="downloadConfig()">📤 导出配置</button>
             <button class="btn btn-ghost btn-sm" onclick="showImportModal()">📥 导入配置</button>
@@ -1087,5 +1088,6 @@
 
   <script src="js/app.js"></script>
   <script src="js/features.js"></script>
+  <script src="js/update-ui.js"></script>
 </body>
 </html>
