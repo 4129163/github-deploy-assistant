@@ -39,6 +39,7 @@ const shareRoutes = require('../routes/share');           // 功能19：一键�
 const remoteRoutes = require('../routes/remote');         // 功能26：远程主机部署
 const webhookEnhancedRoutes = require('../routes/webhook-enhanced'); // 功能35：事件驱动 Webhook
 const privateRoutes = require('../routes/private');       // 功能40：私有仓库支持
+const updateRoutes = require('../routes/update');         // 版本更新&回滚
 
 // 创建 Express 应用
 const app = express();
@@ -187,7 +188,9 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../../public/index.html'));
 });
 
+app.use('/api/update', updateRoutes);  // 版本更新&回滚路由
 // 健康检查
+app.use('/api/update', updateRoutes);  // 版本更新&回滚路由
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', version: require('../../package.json').version });
 });
