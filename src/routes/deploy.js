@@ -7,6 +7,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs-extra');
 const { autoDeploy, generateManualGuide } = require('../services/deploy');
+const { diagnoseAndSuggestFix, applyAutoFix } = require('../services/error-fixer');
 const { evaluateCompatibility } = require('../services/compatibility-checker');
 const { runDeviceScan } = require('../services/device-scan');
 const { ProjectDB, DeployLogDB } = require('../services/database');
@@ -45,6 +46,40 @@ router.get('/guide/:projectId', async (req, res) => {
   } catch (error) {
     logger.error('Generate guide error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 诊断部署错误并给出 AI 修复建议
+ * POST /api/deploy/diagnose/:projectId
+ */
+router.post('/diagnose/:projectId', async (req, res) => {
+  try {
+    const { logContent } = req.body;
+    const project = await ProjectDB.getById(req.params.projectId);
+    if (!project) return res.status(404).json({ error: 'Project not found' });
+
+    const diagnosis = await diagnoseAndSuggestFix(logContent, {
+      types: project.project_type,
+      local_path: project.local_path
+    });
+    res.json({ success: true, data: diagnosis });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * 执行 AI 推荐的修复指令
+ * POST /api/deploy/fix/:projectId
+ */
+router.post('/fix/:projectId', async (req, res) => {
+  try {
+    const { fixCommand } = req.body;
+    const result = await applyAutoFix(req.params.projectId, fixCommand);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
