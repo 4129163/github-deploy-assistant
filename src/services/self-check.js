@@ -513,6 +513,8 @@ async function runSelfCheck() {
   await checkHealthChecker();
   await checkRoutes();
   await checkSecurity();
+  await checkCompatibility(); // 新增兼容性模块自检
+  await checkNetworkOptimizer(); // 新增网络优化模块自检
   const summary = printReport();
   return { results, summary };
 }
