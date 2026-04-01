@@ -381,4 +381,49 @@ router.delete('/orphans/:name', async (req, res) => {
   }
 });
 
+/**
+ * 启动项目
+ * POST /api/project/start/:id
+ */
+router.post('/start/:id', async (req, res) => {
+  try {
+    const project = await ProjectDB.getById(req.params.id);
+    if (!project) return res.status(404).json({ error: '项目不存在' });
+    const result = await require('../services/process-manager').startProject(project);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * 停止项目
+ * POST /api/project/stop/:id
+ */
+router.post('/stop/:id', async (req, res) => {
+  try {
+    const result = await require('../services/process-manager').stopProject(req.params.id);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * 更新环境变量 (.env)
+ * POST /api/project/env/:id
+ */
+router.post('/env/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const project = await ProjectDB.getById(id);
+    if (!project || !project.local_path) return res.status(404).json({ error: '项目不存在或路径无效' });
+
+    await require('../services/config-io').updateEnvConfig(project.local_path, req.body);
+    res.json({ success: true, message: '环境变量已更新' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

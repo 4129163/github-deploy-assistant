@@ -152,4 +152,17 @@ async function importConfig(data, mode = 'preview', conflict = 'skip') {
   return { results, total: results.length };
 }
 
-module.exports = { exportConfig, exportToFile, importConfig };
+/**
+ * 更新环境变量 (.env)
+ */
+async function updateEnvConfig(projectPath, config) {
+  const envPath = path.join(projectPath, '.env');
+  let content = '';
+  for (const [key, value] of Object.entries(config)) {
+    content += `${key}=${value}\n`;
+  }
+  await fs.writeFile(envPath, content, 'utf8');
+  return { success: true };
+}
+
+module.exports = { exportConfig, exportToFile, importConfig, updateEnvConfig };
