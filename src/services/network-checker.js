@@ -22,6 +22,40 @@ function checkUrl(url, timeout = TIMEOUT) {
   });
 }
 
+async function checkGitHubNetwork() {
+  const result = {
+    github_reachable: false,
+    latency_ms: 0,
+    quality: 'unknown', // smooth, unstable, unreachable
+    proxy_recommended: false,
+    mirror_recommended: false
+  };
+
+  try {
+    const check = await checkUrl('https://github.com');
+    
+    if (check.ok) {
+      result.github_reachable = true;
+      result.latency_ms = check.latency;
+      
+      if (result.latency_ms < 500) {
+        result.quality = 'smooth';
+      } else {
+        result.quality = 'unstable';
+        result.mirror_recommended = true;
+      }
+    } else {
+      result.quality = 'unreachable';
+      result.proxy_recommended = true;
+      result.mirror_recommended = true;
+    }
+  } catch (e) {
+    result.quality = 'unreachable';
+  }
+
+  return result;
+}
+
 async function checkNetworkConnectivity() {
   const checks = [
     { name: 'GitHub', url: 'https://github.com', critical: true },
@@ -108,4 +142,4 @@ async function checkAllAIProviders() {
   return { results, any_ok: anyOk, total: results.length };
 }
 
-module.exports = { checkNetworkConnectivity, checkAIKey, checkAllAIProviders };
+module.exports = { checkNetworkConnectivity, checkAIKey, checkAllAIProviders, checkGitHubNetwork };

@@ -332,19 +332,24 @@ async function analyzeRepository(url) {
   return analysis;
 }
 
+const { getBestCloneStrategy } = require('./clone-optimizer');
+
 /**
- * 克隆仓库到本地
+ * 克隆仓库到本地 (带智能网络优化)
  */
 async function cloneRepository(url, targetPath) {
   try {
     await fs.ensureDir(targetPath);
+    
+    // 自动选择最快的下载路径
+    const strategy = await getBestCloneStrategy(url);
+    logger.info(`Using clone strategy: ${strategy.mode} - ${strategy.url}`);
+    if (global.broadcastLog) global.broadcastLog('system', `🌐 网络诊断：${strategy.note}`);
 
-    const timeoutMs = parseInt(process.env.CLONE_TIMEOUT_MS, 10) || 120000; // 默认 2 分钟
+    const timeoutMs = parseInt(process.env.CLONE_TIMEOUT_MS, 10) || 300000; // 5分钟
     const git = simpleGit({ timeout: { block: timeoutMs } });
 
-    logger.info(`Cloning repository to: ${targetPath} (timeout: ${timeoutMs}ms)`);
-
-    await git.clone(url, targetPath, ['--depth', '1']);
+    await git.clone(strategy.url, targetPath, ['--depth', '1']);
 
     logger.info('Clone complete');
     return targetPath;
