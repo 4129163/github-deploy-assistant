@@ -261,15 +261,15 @@ async function chat(messages, provider = null, model = null) {
 async function analyzeRepo(repoData, provider = null) {
   const messages = [
     {
-      role: 'system',
-      content: '你是一个专业的 DevOps 工程师，擅长分析 GitHub 项目并给出部署建议。请用中文回答，内容清晰简洁。'
+      role: 'system', 
+      content: '你是一个专业的 DevOps 工程师，擅长分析 GitHub 项目并给出部署建议。请用中文回答，内容清晰简洁。输出必须包含项目所需的硬件配置（CPU核数、内存GB、磁盘空间GB）。'
     },
     {
-      role: 'user',
-      content: `请分析以下 GitHub 仓库信息，给出部署建议：\n\n${JSON.stringify(repoData, null, 2)}\n\n请包括：\n1. 项目类型和技术栈\n2. 前置依赖要求\n3. 推荐部署方式\n4. 可能遇到的问题和解决方案`
+      role: 'user', 
+      content: `请分析以下 GitHub 仓库信息，并给出详细的部署和硬件建议：\n\n${JSON.stringify(repoData, null, 2)}\n\n请严格按以下 JSON 格式返回：\n{\n  "analysis": "...",\n  "requirements": { "cpu": 1, "memory_gb": 2, "disk_gb": 1 },\n  "stack": ["..."],\n  "recommendation": "..."\n}`
     }
   ];
-  return await chat(messages, provider);
+  return await chat(messages, provider, { jsonMode: true });
 }
 
 /**

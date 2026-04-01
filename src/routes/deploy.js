@@ -7,6 +7,8 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs-extra');
 const { autoDeploy, generateManualGuide } = require('../services/deploy');
+const { evaluateCompatibility } = require('../services/compatibility-checker');
+const { runDeviceScan } = require('../services/device-scan');
 const { ProjectDB, DeployLogDB } = require('../services/database');
 const { logger } = require('../utils/logger');
 const { WORK_DIR } = require('../config');
@@ -21,7 +23,25 @@ router.get('/guide/:projectId', async (req, res) => {
     if (!project) return res.status(404).json({ error: 'Project not found' });
     project.types = project.project_type ? project.project_type.split(',') : [];
     const guide = await generateManualGuide(project);
-    res.json({ success: true, data: { guide, mode: 'manual' } });
+    
+    // 新增：兼容性检测逻辑
+    const deviceStats = await runDeviceScan();
+    // 模拟项目需求（实际可从 AI 分析结果中提取，这里先用默认值）
+    const projectRequirements = {
+      cpu: project.types.includes('docker') ? 2 : 1,
+      memory_gb: project.types.includes('docker') ? 4 : 2,
+      disk_gb: project.types.includes('docker') ? 5 : 1
+    };
+    const compatibility = await evaluateCompatibility(projectRequirements, deviceStats);
+
+    res.json({ 
+      success: true, 
+      data: { 
+        guide, 
+        mode: 'manual', 
+        compatibility 
+      } 
+    });
   } catch (error) {
     logger.error('Generate guide error:', error);
     res.status(500).json({ error: error.message });
