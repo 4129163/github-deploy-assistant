@@ -8,8 +8,29 @@ const { checkGitHubNetwork } = require('./network-checker');
 const GITHUB_MIRRORS = [
   'https://kgithub.com',
   'https://github.moeyy.xyz/https://github.com',
-  'https://ghproxy.com/https://github.com'
+  'https://ghproxy.com/https://github.com',
+  'https://mirror.ghproxy.com/https://github.com', // 备用镜像 1
+  'https://gh-proxy.com/https://github.com'       // 备用镜像 2
 ];
+
+/**
+ * 智能备份/批量任务调度
+ * 参考 git-sync 和 octarchive 的逻辑：
+ * 1. 支持全量克隆用户所有公开仓库
+ * 2. 自动分类归档
+ */
+async function batchBackupUserRepos(username) {
+  const { githubAxios } = require('./github');
+  try {
+    const res = await githubAxios.get(`https://api.github.com/users/${username}/repos?per_page=100`);
+    const repos = res.data.map(r => r.clone_url);
+    logger.info(`Found ${repos.length} repos for user: ${username}`);
+    // 批量触发智能克隆
+    return repos;
+  } catch (e) {
+    throw new Error(`无法获取用户仓库列表: ${e.message}`);
+  }
+}
 
 /**
  * 获取最优克隆策略

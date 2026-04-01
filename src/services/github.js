@@ -398,10 +398,24 @@ async function getLocalProjectInfo(projectPath) {
   }
 }
 
-module.exports = {
-  parseGitHubUrl,
-  analyzeRepository,
-  cloneRepository,
-  getLocalProjectInfo,
-  getFileContent
-};
+/**
+ * 精细化下载策略 (参考 Dgit / Sparse-Checkout)
+ * 仅下载指定的子目录，节省流量和时间
+ */
+async function partialCloneRepository(url, targetPath, subDir) {
+  const simpleGit = require('simple-git');
+  const git = simpleGit();
+  try {
+    await fs.ensureDir(targetPath);
+    await git.init();
+    await git.addRemote('origin', url);
+    await git.raw(['config', 'core.sparseCheckout', 'true']);
+    await fs.writeFile(path.join(targetPath, '.git/info/sparse-checkout'), subDir);
+    await git.pull('origin', 'main', ['--depth', '1']);
+    return targetPath;
+  } catch (e) {
+    throw new Error(`精细化下载失败: ${e.message}`);
+  }
+}
+
+module.exports = { ...module.exports, partialCloneRepository };
