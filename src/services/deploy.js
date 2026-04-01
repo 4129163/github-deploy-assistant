@@ -299,6 +299,17 @@ function generateManualGuide(project) {
     guide += `### 2. 创建虚拟环境\n\n\`\`\`bash\npython3 -m venv venv\nsource venv/bin/activate  # Linux/Mac\n# 或: venv\\Scripts\\activate  # Windows\n\`\`\`\n\n`;
     guide += `### 3. 安装依赖\n\n\`\`\`bash\npip install -r requirements.txt\n\`\`\`\n\n`;
     guide += `### 4. 启动项目\n\n\`\`\`bash\npython main.py\n\`\`\`\n\n`;
+  } else if (types.includes('go')) {
+    guide += `### 2. 下载依赖\n\n\`\`\`bash\ngo mod download\n\`\`\`\n\n`;
+    guide += `### 3. 构建并运行\n\n\`\`\`bash\ngo build -o main .\n./main\n\`\`\`\n\n`;
+  } else if (types.includes('rust')) {
+    guide += `### 2. 编译并运行\n\n\`\`\`bash\ncargo run --release\n\`\`\`\n\n`;
+  } else if (types.includes('java')) {
+    if (project.files && project.files.includes('pom.xml')) {
+      guide += `### 2. 使用 Maven 构建\n\n\`\`\`bash\nmvn package\njava -jar target/*.jar\n\`\`\`\n\n`;
+    } else if (project.files && project.files.includes('build.gradle')) {
+      guide += `### 2. 使用 Gradle 构建\n\n\`\`\`bash\n./gradlew build\njava -jar build/libs/*.jar\n\`\`\`\n\n`;
+    }
   } else if (types.includes('docker')) {
     guide += `### 2. 构建 Docker 镜像\n\n\`\`\`bash\ndocker build -t ${project.name} .\n\`\`\`\n\n`;
     guide += `### 3. 运行容器\n\n\`\`\`bash\ndocker run -d --name ${project.name} -p 3000:3000 ${project.name}\n\`\`\`\n\n`;

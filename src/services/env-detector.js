@@ -102,6 +102,43 @@ const INSTALL_GUIDES = {
     win32: 'npm install -g pm2',
     note: 'Node.js 进程管理器，需要先安装 Node.js'
   },
+  go: {
+    name: 'Go',
+    linux: 'sudo apt install -y golang-go',
+    darwin: 'brew install go',
+    win32: '下载安装包：https://go.dev/dl/',
+    winget: 'winget install GoLang.Go',
+    note: '安装后请确认 GOPATH 已配置'
+  },
+  rust: {
+    name: 'Rust',
+    linux: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh',
+    darwin: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh',
+    win32: '下载安装程序：https://rustup.rs/',
+    note: '安装后运行 source $HOME/.cargo/env'
+  },
+  java: {
+    name: 'Java (JDK 17)',
+    linux: 'sudo apt install -y openjdk-17-jdk',
+    darwin: 'brew install openjdk@17',
+    win32: '下载 JDK：https://www.oracle.com/java/technologies/downloads/',
+    winget: 'winget install Oracle.JDK.17',
+    note: '请确保 JAVA_HOME 环境变量已设置'
+  },
+  maven: {
+    name: 'Maven',
+    linux: 'sudo apt install -y maven',
+    darwin: 'brew install maven',
+    win32: '下载并解压：https://maven.apache.org/download.cgi',
+    note: 'Java 项目常用的构建工具'
+  },
+  gradle: {
+    name: 'Gradle',
+    linux: 'sudo apt install -y gradle',
+    darwin: 'brew install gradle',
+    win32: '下载并解压：https://gradle.org/releases/',
+    note: 'Java/Android 项目常用的构建工具'
+  }
 };
 
 /**
