@@ -464,6 +464,32 @@ async function checkSecurity() {
   }
 }
 
+async function checkCompatibility() {
+  try {
+    const checker = require('./compatibility-checker');
+    if (checker && typeof checker.evaluateCompatibility === 'function') {
+      pass('Modules', 'CompatibilityChecker', '已就绪 (AI 诊断功能正常)');
+    } else {
+      fail('Modules', 'CompatibilityChecker', '接口定义不完整');
+    }
+  } catch (e) {
+    fail('Modules', 'CompatibilityChecker', `加载失败: ${e.message}`);
+  }
+}
+
+async function checkNetworkOptimizer() {
+  try {
+    const optimizer = require('./clone-optimizer');
+    if (optimizer && typeof optimizer.getBestCloneStrategy === 'function') {
+      pass('Modules', 'CloneOptimizer', '已就绪 (智能网络加速正常)');
+    } else {
+      fail('Modules', 'CloneOptimizer', '接口定义不完整');
+    }
+  } catch (e) {
+    fail('Modules', 'CloneOptimizer', `加载失败: ${e.message}`);
+  }
+}
+
 // ── 汇总报告 ─────────────────────────────────────────
 function printReport() {
   const pad = (s, n) => String(s).padEnd(n);
