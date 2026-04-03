@@ -22,6 +22,7 @@ const { autoDeploy, generateManualGuide, checkEnvironment } = require('../servic
 const { initDatabase, ProjectDB, ConversationDB } = require('../services/database');
 const { RepoUploader, PlatformFactory } = require('../repo-uploader');
 const { RepoAnalyzer } = require('../repo-analyzer');
+const { ProjectDoctor } = require('../project-doctor');
 
 const WORK_DIR = process.env.WORK_DIR || path.join(__dirname, '../../workspace');
 
@@ -48,6 +49,7 @@ async function mainMenu() {
     choices: [
       { name: '🔗 分析并部署新项目', value: 'analyze' },
       { name: '🔍 仓库深度解析（问题检测+使用预测）', value: 'analyze-repo' },
+      { name: '👨‍⚕️ 项目医生（自动诊断+修复+对话配置）', value: 'doctor' },
       { name: '📤 本地源码一键上传到托管平台', value: 'upload' },
       { name: '📂 查看已管理项目', value: 'projects' },
       { name: '⚙️  配置 AI 模型', value: 'config' },
@@ -65,6 +67,9 @@ async function mainMenu() {
       break;
     case 'analyze-repo':
       await analyzeRepoDeeply();
+      break;
+    case 'doctor':
+      await projectDoctorMenu();
       break;
     case 'projects':
       await viewProjects();
@@ -762,5 +767,114 @@ async function analyzeRepoDeeply() {
     }
   } catch (e) {
     spinner.fail('解析失败: ' + e.message);
+  }
+}
+
+
+// 项目医生菜单
+async function projectDoctorMenu() {
+  console.log(chalk.cyan.bold('\\n👨‍⚕️ 项目医生功能'));
+  console.log(chalk.gray('自动诊断项目问题、一键修复、大白话对话配置\\n'));
+
+  // 选择要操作的项目
+  const projects = await ProjectDB.findAll();
+  if (projects.length === 0) {
+    console.log(chalk.yellow('暂无已管理的项目，请先部署项目再使用项目医生功能'));
+    return;
+  }
+
+  const { projectId } = await inquirer.prompt([{
+    type: 'list',
+    name: 'projectId',
+    message: '请选择要操作的项目:',
+    choices: projects.map(p => ({ name: `${p.name} (${p.status || '未运行'})`, value: p.id }))
+  }]);
+
+  const project = await ProjectDB.findById(projectId);
+  const doctor = new ProjectDoctor();
+
+  // 子菜单
+  while (true) {
+    const { action } = await inquirer.prompt([{
+      type: 'list',
+      name: 'action',
+      message: `请选择对【${project.name}】的操作:`,
+      choices: [
+        { name: '🔍 诊断项目问题', value: 'diagnose' },
+        { name: '🔧 一键自动修复所有可修复问题', value: 'autofix' },
+        { name: '💬 大白话对话配置（直接说需求改配置）', value: 'chat' },
+        { name: '🔙 返回主菜单', value: 'back' }
+      ]
+    }]);
+
+    if (action === 'back') break;
+
+    switch (action) {
+      case 'diagnose': {
+        const spinner = ora('正在诊断项目问题...').start();
+        const diagnoseResult = await doctor.diagnose(project);
+        spinner.succeed('诊断完成！');
+
+        if (diagnoseResult.issues.length === 0) {
+          console.log(chalk.green('✅ 项目状态完美，没有检测到任何问题！'));
+          break;
+        }
+
+        console.log(`\\n🔍 检测到 ${diagnoseResult.issues.length} 个问题，其中 ${diagnoseResult.fixableCount} 个可自动修复：`);
+        diagnoseResult.issues.forEach((issue, i) => {
+          const severityColor = issue.severity === 'critical' ? chalk.red : issue.severity === 'high' ? chalk.yellow : chalk.blue;
+          console.log(`${i+1}. ${severityColor(`[${issue.severity}]`)} ${issue.name} - ${issue.description}`);
+          console.log(`   ${issue.fixable ? chalk.green('✅ 可自动修复') : chalk.yellow('⚠️  需要手动修复')}\\n`);
+        });
+        break;
+      }
+
+      case 'autofix': {
+        const spinner = ora('正在诊断并自动修复问题...').start();
+        const diagnoseResult = await doctor.diagnose(project);
+        if (diagnoseResult.fixableCount === 0) {
+          spinner.succeed('没有可自动修复的问题');
+          break;
+        }
+
+        const fixResult = await doctor.autoFix(diagnoseResult);
+        spinner.succeed('自动修复完成！');
+        console.log(`\\n修复结果：成功修复${fixResult.successCount}个问题，失败${fixResult.failedCount}个问题`);
+        if (fixResult.failedCount > 0) {
+          console.log('\\n以下问题修复失败，请手动处理：');
+          fixResult.failedIssues.forEach((issue, i) => {
+            console.log(`${i+1}. ${issue.name}`);
+            console.log(`   修复方案：${this.fixers.runtime.getManualFixSteps(issue, project) || this.fixers.config.getManualFixSteps(issue, project)}\\n`);
+          });
+        }
+        break;
+      }
+
+      case 'chat': {
+        console.log(chalk.cyan('\\n💬 现在可以用大白话告诉我你要做什么，比如：'));
+        console.log(chalk.gray('· 帮我把OpenAI的API密钥改成sk-xxxxxx'));
+        console.log(chalk.gray('· 把服务端口改成8080'));
+        console.log(chalk.gray('· 开启邮件通知功能'));
+        console.log(chalk.gray('输入 exit 退出对话模式\\n'));
+
+        while (true) {
+          const { message } = await inquirer.prompt([{
+            type: 'input',
+            name: 'message',
+            message: '你:'
+          }]);
+
+          if (message.toLowerCase() === 'exit' || message.toLowerCase() === '退出') {
+            break;
+          }
+
+          const spinner = ora('正在处理...').start();
+          const reply = await doctor.chat(project, message);
+          spinner.stop();
+          console.log(chalk.green('医生: ') + reply + '\\n');
+        }
+        break;
+      }
+    }
   }
 }
