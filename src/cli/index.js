@@ -23,6 +23,7 @@ const { initDatabase, ProjectDB, ConversationDB } = require('../services/databas
 const { RepoUploader, PlatformFactory } = require('../repo-uploader');
 const { RepoAnalyzer } = require('../repo-analyzer');
 const { ProjectDoctor } = require('../project-doctor');
+const { SmartArchive } = require('../smart-archive');
 
 const WORK_DIR = process.env.WORK_DIR || path.join(__dirname, '../../workspace');
 
@@ -50,6 +51,7 @@ async function mainMenu() {
       { name: '🔗 分析并部署新项目', value: 'analyze' },
       { name: '🔍 仓库深度解析（问题检测+使用预测）', value: 'analyze-repo' },
       { name: '👨‍⚕️ 项目医生（自动诊断+修复+对话配置）', value: 'doctor' },
+      { name: '💾 智能存档与回档', value: 'archive' },
       { name: '📤 本地源码一键上传到托管平台', value: 'upload' },
       { name: '📂 查看已管理项目', value: 'projects' },
       { name: '⚙️  配置 AI 模型', value: 'config' },
@@ -70,6 +72,9 @@ async function mainMenu() {
       break;
     case 'doctor':
       await projectDoctorMenu();
+      break;
+    case 'archive':
+      await smartArchiveMenu();
       break;
     case 'projects':
       await viewProjects();
@@ -841,11 +846,15 @@ async function projectDoctorMenu() {
         spinner.succeed('自动修复完成！');
         console.log(`\\n修复结果：成功修复${fixResult.successCount}个问题，失败${fixResult.failedCount}个问题`);
         if (fixResult.failedCount > 0) {
-          console.log('\\n以下问题修复失败，请手动处理：');
+          console.log('\\n以下问题修复失败：');
           fixResult.failedIssues.forEach((issue, i) => {
             console.log(`${i+1}. ${issue.name}`);
-            console.log(`   修复方案：${this.fixers.runtime.getManualFixSteps(issue, project) || this.fixers.config.getManualFixSteps(issue, project)}\\n`);
+            console.log(`   修复方案：${doctor.fixers.runtime.getManualFixSteps(issue, project) || doctor.fixers.config.getManualFixSteps(issue, project)}\\n`);
           });
+          
+          // 提示回档功能
+          console.log(chalk.yellow('\\n⚠️  如果上述方案无法解决问题，建议使用「智能存档与回档」功能恢复到之前正常的存档状态：'));
+          console.log(chalk.cyan('   操作步骤：主菜单 → 💾 智能存档与回档 → 选择项目 → 选择最近的正常存档恢复即可'));
         }
         break;
       }
@@ -872,6 +881,121 @@ async function projectDoctorMenu() {
           const reply = await doctor.chat(project, message);
           spinner.stop();
           console.log(chalk.green('医生: ') + reply + '\\n');
+        }
+        break;
+      }
+    }
+  }
+}
+
+
+// 智能存档与回档菜单
+async function smartArchiveMenu() {
+  console.log(chalk.cyan.bold('\\n💾 智能存档与回档功能'));
+  console.log(chalk.gray('自动/手动存档，一键回档，数据永不丢失\\n'));
+
+  // 选择要操作的项目
+  const projects = await ProjectDB.findAll();
+  if (projects.length === 0) {
+    console.log(chalk.yellow('暂无已管理的项目，请先部署项目再使用存档功能'));
+    return;
+  }
+
+  const { projectId } = await inquirer.prompt([{
+    type: 'list',
+    name: 'projectId',
+    message: '请选择要操作的项目:',
+    choices: projects.map(p => ({ name: `${p.name} (${p.status || '未运行'})`, value: p.id }))
+  }]);
+
+  const project = await ProjectDB.findById(projectId);
+  const archiveManager = new SmartArchive();
+
+  // 子菜单
+  while (true) {
+    const archives = await archiveManager.getProjectArchives(projectId);
+    const { action } = await inquirer.prompt([{
+      type: 'list',
+      name: 'action',
+      message: `请选择对【${project.name}】的存档操作:`,
+      choices: [
+        { name: `📝 手动创建存档（当前共有${archives.length}份存档）`, value: 'create' },
+        { name: '📋 查看存档列表', value: 'list' },
+        { name: '⏪ 恢复到指定存档', value: 'restore' },
+        { name: '🔙 返回主菜单', value: 'back' }
+      ]
+    }]);
+
+    if (action === 'back') break;
+
+    switch (action) {
+      case 'create': {
+        try {
+          const archive = await archiveManager.createArchive(project, 'manual');
+          console.log(chalk.green(`✅ 手动存档创建成功！存档名: ${archive.name}，大小: ${(archive.size / 1024 / 1024).toFixed(2)}MB`));
+        } catch (e) {
+          console.log(chalk.red('❌ 存档创建失败: ' + e.message));
+        }
+        break;
+      }
+
+      case 'list': {
+        const archives = await archiveManager.getProjectArchives(projectId);
+        if (archives.length === 0) {
+          console.log(chalk.yellow('暂无存档记录'));
+          break;
+        }
+        console.log('\\n📋 存档列表：');
+        archives.forEach((archive, i) => {
+          const typeTag = archive.type === 'auto' ? chalk.blue('[自动]') : chalk.green('[手动]');
+          const firstTag = i === archives.length - 1 ? chalk.yellow(' [黄金存档·永久保留]') : '';
+          console.log(`${i+1}. ${typeTag} ${new Date(archive.createTime).toLocaleString()} - ${archive.description}${firstTag}`);
+          console.log(`   大小: ${(archive.size / 1024 / 1024).toFixed(2)}MB，文件名: ${archive.name}\\n`);
+        });
+        break;
+      }
+
+      case 'restore': {
+        const archives = await archiveManager.getProjectArchives(projectId);
+        if (archives.length === 0) {
+          console.log(chalk.yellow('暂无存档记录，无法回档'));
+          break;
+        }
+
+        const { archiveId } = await inquirer.prompt([{
+          type: 'list',
+          name: 'archiveId',
+          message: '请选择要恢复的存档:',
+          choices: archives.map((archive, i) => {
+            const typeTag = archive.type === 'auto' ? '[自动]' : '[手动]';
+            const firstTag = i === archives.length - 1 ? ' [黄金存档·永久保留]' : '';
+            return {
+              name: `${typeTag} ${new Date(archive.createTime).toLocaleString()} - ${archive.description}${firstTag}`,
+              value: archive.id
+            };
+          })
+        }]);
+
+        // 确认回档
+        const { confirm } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'confirm',
+          message: '⚠️  回档会覆盖当前项目的所有代码和配置，是否继续？（当前数据会自动导出到桌面）',
+          default: false
+        }]);
+
+        if (!confirm) break;
+
+        try {
+          const success = await archiveManager.restoreArchive(archiveId, project);
+          if (success) {
+            console.log(chalk.green('✅ 存档恢复成功！项目已回到对应存档时的状态'));
+            console.log(chalk.cyan('💡 回档前的所有数据已导出到桌面，如有需要可以手动导入'));
+          } else {
+            console.log(chalk.red('❌ 存档恢复失败，请重试'));
+          }
+        } catch (e) {
+          console.log(chalk.red('❌ 回档失败: ' + e.message));
         }
         break;
       }
