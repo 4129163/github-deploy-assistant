@@ -21,6 +21,7 @@ const { analyzeRepo, generateDeployScript, answerQuestion, getAvailableProviders
 const { autoDeploy, generateManualGuide, checkEnvironment } = require('../services/deploy');
 const { initDatabase, ProjectDB, ConversationDB } = require('../services/database');
 const { RepoUploader, PlatformFactory } = require('../repo-uploader');
+const { RepoAnalyzer } = require('../repo-analyzer');
 
 const WORK_DIR = process.env.WORK_DIR || path.join(__dirname, '../../workspace');
 
@@ -46,6 +47,7 @@ async function mainMenu() {
     message: '请选择操作:',
     choices: [
       { name: '🔗 分析并部署新项目', value: 'analyze' },
+      { name: '🔍 仓库深度解析（问题检测+使用预测）', value: 'analyze-repo' },
       { name: '📤 本地源码一键上传到托管平台', value: 'upload' },
       { name: '📂 查看已管理项目', value: 'projects' },
       { name: '⚙️  配置 AI 模型', value: 'config' },
@@ -60,6 +62,9 @@ async function mainMenu() {
       break;
     case 'upload':
       await uploadLocalRepo();
+      break;
+    case 'analyze-repo':
+      await analyzeRepoDeeply();
       break;
     case 'projects':
       await viewProjects();
@@ -606,5 +611,156 @@ async function uploadLocalRepo() {
     console.log(chalk.cyan('现在你可以直接访问上面的地址查看你的仓库了，所有配置都已经自动生成好了~'));
   } catch (e) {
     spinner.fail('上传失败: ' + e.message);
+  }
+}
+
+
+// 仓库深度解析
+async function analyzeRepoDeeply() {
+  console.log(chalk.cyan.bold('\\n🔍 仓库深度解析功能'));
+  console.log(chalk.gray('支持链接解析、本地仓库解析，自动检测问题、预测使用风险\\n'));
+
+  // 选择解析来源
+  const { sourceType } = await inquirer.prompt([{
+    type: 'list',
+    name: 'sourceType',
+    message: '请选择解析来源:',
+    choices: [
+      { name: '🔗 粘贴仓库Git链接', value: 'url' },
+      { name: '📂 选择本地项目文件夹', value: 'local' },
+      { name: '📋 从已管理项目中选择', value: 'existing' }
+    ]
+  }]);
+
+  let repoPath = '';
+  let repoUrl = '';
+  const analyzer = new RepoAnalyzer();
+
+  if (sourceType === 'url') {
+    const { url } = await inquirer.prompt([{
+      type: 'input',
+      name: 'url',
+      message: '请输入仓库Git链接:',
+      validate: input => input.startsWith('http') || input.startsWith('git@') ? true : '请输入有效的Git地址'
+    }]);
+    repoUrl = url;
+
+    // 克隆仓库到临时目录
+    const spinner = ora('正在克隆仓库到本地...').start();
+    const tempDir = path.join(WORK_DIR, 'temp-repo-' + Date.now());
+    await fs.mkdirp(tempDir);
+    try {
+      await simpleGit().clone(url, tempDir);
+      repoPath = tempDir;
+      spinner.succeed('仓库克隆完成');
+    } catch (e) {
+      spinner.fail('仓库克隆失败: ' + e.message);
+      await fs.remove(tempDir);
+      return;
+    }
+  } else if (sourceType === 'local') {
+    const { localPath } = await inquirer.prompt([{
+      type: 'input',
+      name: 'localPath',
+      message: '请输入本地项目文件夹路径:',
+      default: process.cwd(),
+      validate: async input => {
+        if (!await fs.pathExists(input)) return '路径不存在';
+        if (!await fs.stat(input).isDirectory()) return '请输入文件夹路径';
+        return true;
+      }
+    }]);
+    repoPath = localPath;
+  } else {
+    // 从已管理项目选择
+    const projects = await ProjectDB.findAll();
+    if (projects.length === 0) {
+      console.log(chalk.yellow('暂无已管理的项目，请先添加项目'));
+      return;
+    }
+    const { projectId } = await inquirer.prompt([{
+      type: 'list',
+      name: 'projectId',
+      message: '请选择要解析的项目:',
+      choices: projects.map(p => ({ name: `${p.name} (${p.url || p.local_path})`, value: p.id }))
+    }]);
+    const project = await ProjectDB.findById(projectId);
+    repoPath = project.local_path;
+    repoUrl = project.url;
+  }
+
+  // 开始解析
+  const spinner = ora('正在深度解析仓库...').start();
+  try {
+    const result = await analyzer.analyze(repoPath, repoUrl);
+    spinner.succeed('解析完成！');
+
+    // 展示解析结果
+    console.log('\\n' + chalk.cyan.bold('📋 仓库基本信息'));
+    console.log(`项目名称: ${result.repoName}`);
+    console.log(`开发语言: ${result.basicInfo.language}`);
+    console.log(`提交次数: ${result.basicInfo.commitCount}`);
+    console.log(`最后更新: ${result.basicInfo.lastUpdate || '未知'}`);
+    console.log(`贡献者: ${result.basicInfo.contributors.length > 0 ? result.basicInfo.contributors.join('、') : '未知'}`);
+
+    console.log('\\n' + chalk.green.bold('✨ 核心功能'));
+    if (result.features.length > 0) {
+      result.features.forEach((f, i) => console.log(`${i+1}. ${f}`));
+    } else {
+      console.log('AI正在分析功能列表，请稍候...');
+    }
+
+    // 检测到的问题
+    console.log('\\n' + chalk.yellow.bold('⚠️  检测到的现有问题'));
+    if (result.detectedIssues.length > 0) {
+      result.detectedIssues.forEach((issue, i) => {
+        const severityColor = issue.severity === 'critical' ? chalk.red : issue.severity === 'high' ? chalk.yellow : chalk.blue;
+        console.log(`${i+1}. ${severityColor(`[${issue.severity}]`)} ${issue.description}`);
+        console.log(`   解决方案: ${issue.solution}\\n`);
+      });
+    } else {
+      console.log('✅ 未检测到明显问题');
+    }
+
+    // 预测的问题
+    console.log('\\n' + chalk.magenta.bold('🔮 预测使用中可能出现的问题'));
+    if (result.predictedProblems.length > 0) {
+      result.predictedProblems.forEach((p, i) => {
+        console.log(`${i+1}. ${p.problem}`);
+        console.log(`   解决方案: ${p.solution}\\n`);
+      });
+    } else {
+      console.log('✅ 未预测到明显使用风险');
+    }
+
+    console.log(chalk.cyan('\\n💡 所有解析结果已自动存档，后续部署该仓库时可以直接查看！'));
+
+    // 询问是否需要进一步操作
+    const { nextAction } = await inquirer.prompt([{
+      type: 'list',
+      name: 'nextAction',
+      message: '接下来要做什么?',
+      choices: [
+        { name: '🚀 直接部署这个项目', value: 'deploy' },
+        { name: '📤 上传这个项目到托管平台', value: 'upload' },
+        { name: '🔙 返回主菜单', value: 'back' }
+      ]
+    }]);
+
+    if (nextAction === 'deploy') {
+      // 跳转到部署流程
+      await autoDeployProject({ id: 0, name: result.repoName, local_path: repoPath, url: repoUrl }, {});
+    } else if (nextAction === 'upload') {
+      // 跳转到上传流程，预先填好路径
+      // 这里可以直接调用uploadLocalRepo，暂时返回主菜单
+      console.log(chalk.cyan('请在主菜单选择上传功能，选择对应的项目路径即可'));
+    }
+
+    // 清理临时目录
+    if (sourceType === 'url') {
+      await fs.remove(repoPath);
+    }
+  } catch (e) {
+    spinner.fail('解析失败: ' + e.message);
   }
 }
