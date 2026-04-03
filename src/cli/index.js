@@ -20,6 +20,7 @@ const { analyzeRepository, cloneRepository } = require('../services/github');
 const { analyzeRepo, generateDeployScript, answerQuestion, getAvailableProviders } = require('../services/ai');
 const { autoDeploy, generateManualGuide, checkEnvironment } = require('../services/deploy');
 const { initDatabase, ProjectDB, ConversationDB } = require('../services/database');
+const { RepoUploader, PlatformFactory } = require('../repo-uploader');
 
 const WORK_DIR = process.env.WORK_DIR || path.join(__dirname, '../../workspace');
 
@@ -45,6 +46,7 @@ async function mainMenu() {
     message: '请选择操作:',
     choices: [
       { name: '🔗 分析并部署新项目', value: 'analyze' },
+      { name: '📤 本地源码一键上传到托管平台', value: 'upload' },
       { name: '📂 查看已管理项目', value: 'projects' },
       { name: '⚙️  配置 AI 模型', value: 'config' },
       { name: '📋 检查系统环境', value: 'env' },
@@ -55,6 +57,9 @@ async function mainMenu() {
   switch (action) {
     case 'analyze':
       await analyzeNewProject();
+      break;
+    case 'upload':
+      await uploadLocalRepo();
       break;
     case 'projects':
       await viewProjects();
@@ -449,3 +454,157 @@ async function main() {
 
 // 运行
 main();
+
+
+// 本地源码一键上传到托管平台
+async function uploadLocalRepo() {
+  console.log(chalk.cyan.bold('\\n📤 本地源码一键托管上传'));
+  console.log(chalk.gray('支持 GitHub/Gitee/GitCode/GitLab 所有主流平台\\n'));
+
+  // 1. 选择平台
+  const platforms = PlatformFactory.getSupportedPlatforms();
+  const { platformType } = await inquirer.prompt([{
+    type: 'list',
+    name: 'platformType',
+    message: '请选择要上传的托管平台:',
+    choices: platforms.map(p => ({ name: `${p.label} (${p.home})`, value: p.value }))
+  }]);
+
+  // 2. 输入平台token
+  const platformInfo = platforms.find(p => p.value === platformType);
+  const { token } = await inquirer.prompt([{
+    type: 'input',
+    name: 'token',
+    message: `请输入${platformInfo.label}的私人令牌(Token):`,
+    validate: input => input ? true : 'Token不能为空',
+    suffix: chalk.gray(`\\n获取地址: ${platformInfo.tokenHelp}`)
+  }]);
+
+  // 3. 验证token
+  const spinner = ora('正在验证令牌有效性...').start();
+  const uploader = new RepoUploader({
+    platformType,
+    token
+  });
+
+  const isValid = await uploader.validateToken();
+  if (!isValid) {
+    spinner.fail('令牌无效，请检查后重试');
+    return;
+  }
+  spinner.succeed('令牌验证通过');
+
+  // 4. 选择上传模式
+  const { uploadMode } = await inquirer.prompt([{
+    type: 'list',
+    name: 'uploadMode',
+    message: '请选择上传模式:',
+    choices: [
+      { name: '🔄 上传到已有仓库（指定仓库地址）', value: 'existing' },
+      { name: '🆕 自动创建新仓库', value: 'new' }
+    ]
+  }]);
+
+  let repoUrl = null;
+  if (uploadMode === 'existing') {
+    const { inputUrl } = await inquirer.prompt([{
+      type: 'input',
+      name: 'inputUrl',
+      message: '请输入已有仓库的Git地址:',
+      validate: input => input.startsWith('http') || input.startsWith('git@') ? true : '请输入有效的Git地址'
+    }]);
+    repoUrl = inputUrl;
+  }
+
+  // 5. 输入本地项目路径
+  const { projectPath } = await inquirer.prompt([{
+    type: 'input',
+    name: 'projectPath',
+    message: '请输入本地项目文件夹路径:',
+    default: process.cwd(),
+    validate: async input => {
+      if (!await fs.pathExists(input)) return '路径不存在';
+      if (!await fs.stat(input).isDirectory()) return '请输入文件夹路径';
+      return true;
+    }
+  }]);
+
+  // 6. 仓库配置
+  const repoConfig = await inquirer.prompt([
+    ...(uploadMode === 'new' ? [
+      {
+        type: 'input',
+        name: 'repoName',
+        message: '请输入仓库名称:',
+        default: path.basename(projectPath),
+        validate: input => input ? true : '仓库名称不能为空'
+      },
+      {
+        type: 'input',
+        name: 'description',
+        message: '请输入仓库描述（可选）:'
+      },
+      {
+        type: 'confirm',
+        name: 'isPrivate',
+        message: '是否设置为私有仓库?',
+        default: true
+      }
+    ] : []),
+    {
+      type: 'confirm',
+      name: 'generateConfig',
+      message: '是否自动生成标准仓库配置文件(.gitignore/LICENSE/README.md等)?',
+      default: true
+    },
+    ...(uploadMode === 'new' ? [
+      {
+        type: 'list',
+        name: 'licenseType',
+        message: '请选择开源协议:',
+        choices: [
+          { name: 'MIT (最宽松，商业友好)', value: 'MIT' },
+          { name: 'Apache-2.0', value: 'Apache-2.0' },
+          { name: 'GPL-3.0', value: 'GPL-3.0' },
+          { name: '不选择协议', value: 'none' }
+        ],
+        when: answers => answers.generateConfig
+      }
+    ] : []),
+    {
+      type: 'input',
+      name: 'author',
+      message: '请输入作者名称:',
+      default: 'open-source',
+      when: answers => answers.generateConfig
+    },
+    {
+      type: 'confirm',
+      name: 'forcePush',
+      message: '是否强制覆盖已有仓库内容?',
+      default: false
+    }
+  ]);
+
+  // 7. 开始上传
+  spinner.start('正在上传代码到仓库...');
+  try {
+    const finalRepoUrl = await uploader.upload(projectPath, {
+      repoUrl,
+      repoName: repoConfig.repoName,
+      description: repoConfig.description,
+      isPrivate: repoConfig.isPrivate,
+      licenseType: repoConfig.licenseType || 'MIT',
+      projectType: 'default',
+      author: repoConfig.author,
+      generateConfig: repoConfig.generateConfig,
+      forcePush: repoConfig.forcePush,
+      commitMessage: 'Initial commit by GitHub Deploy Assistant'
+    });
+    spinner.succeed('代码上传成功！');
+    console.log(chalk.green.bold('\\n✅ 仓库地址: ' + finalRepoUrl));
+    console.log(chalk.cyan('现在你可以直接访问上面的地址查看你的仓库了，所有配置都已经自动生成好了~'));
+  } catch (e) {
+    spinner.fail('上传失败: ' + e.message);
+  }
+}
