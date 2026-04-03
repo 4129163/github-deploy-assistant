@@ -128,6 +128,18 @@ async function detectProjectType(owner, repo, files) {
   // Node.js 项目
   if (fileNames.includes('package.json')) {
     types.push('nodejs');
+    // 检测前端框架
+    try {
+      const pkgContent = await getFileContent(owner, repo, 'package.json');
+      if (pkgContent) {
+        if (pkgContent.includes('"vue"')) types.push('vue');
+        if (pkgContent.includes('"react"')) types.push('react');
+        if (pkgContent.includes('"next"')) types.push('nextjs');
+        if (pkgContent.includes('"nuxt"')) types.push('nuxtjs');
+        if (pkgContent.includes('"vite"')) types.push('vite');
+        if (pkgContent.includes('"webpack"')) types.push('webpack');
+      }
+    } catch (_) {}
   }
   
   // Python 项目
@@ -136,31 +148,75 @@ async function detectProjectType(owner, repo, files) {
       fileNames.includes('pyproject.toml') ||
       fileNames.includes('pipfile')) {
     types.push('python');
+    // 检测Python框架
+    try {
+      const reqContent = await getFileContent(owner, repo, 'requirements.txt') || '';
+      if (reqContent.includes('django') || fileNames.includes('manage.py')) types.push('django');
+      if (reqContent.includes('flask') || reqContent.includes('fastapi')) types.push('python-web');
+      if (reqContent.includes('torch') || reqContent.includes('tensorflow')) types.push('ai-model');
+    } catch (_) {}
   }
   
   // Go 项目
   if (fileNames.includes('go.mod')) {
     types.push('go');
+    try {
+      const modContent = await getFileContent(owner, repo, 'go.mod') || '';
+      if (modContent.includes('gin') || modContent.includes('echo') || modContent.includes('fiber')) types.push('go-web');
+    } catch (_) {}
   }
   
   // Rust 项目
   if (fileNames.includes('cargo.toml')) {
     types.push('rust');
+    try {
+      const cargoContent = await getFileContent(owner, repo, 'Cargo.toml') || '';
+      if (cargoContent.includes('actix-web') || cargoContent.includes('rocket') || cargoContent.includes('axum')) types.push('rust-web');
+    } catch (_) {}
   }
   
   // Java 项目
   if (fileNames.includes('pom.xml') || fileNames.includes('build.gradle')) {
     types.push('java');
+    try {
+      const pomContent = fileNames.includes('pom.xml') ? (await getFileContent(owner, repo, 'pom.xml') || '') : '';
+      const gradleContent = fileNames.includes('build.gradle') ? (await getFileContent(owner, repo, 'build.gradle') || '') : '';
+      if (pomContent.includes('spring-boot') || gradleContent.includes('spring-boot')) types.push('springboot');
+    } catch (_) {}
+  }
+  
+  // PHP 项目
+  if (fileNames.includes('composer.json') || fileNames.includes('index.php') || fileNames.includes('laravel')) {
+    types.push('php');
+    try {
+      const composerContent = fileNames.includes('composer.json') ? (await getFileContent(owner, repo, 'composer.json') || '') : '';
+      if (composerContent.includes('laravel') || fileNames.includes('artisan')) types.push('laravel');
+    } catch (_) {}
+  }
+  
+  // .NET 项目
+  if (fileNames.some(f => f.endsWith('.csproj') || f.endsWith('.sln')) || fileNames.includes('dotnet.json')) {
+    types.push('dotnet');
+    try {
+      const csprojFile = fileNames.find(f => f.endsWith('.csproj'));
+      const csprojContent = csprojFile ? (await getFileContent(owner, repo, csprojFile) || '') : '';
+      if (csprojContent.includes('Microsoft.AspNetCore')) types.push('aspnetcore');
+    } catch (_) {}
   }
   
   // Docker 项目
-  if (fileNames.includes('dockerfile') || fileNames.includes('docker-compose.yml')) {
+  if (fileNames.includes('dockerfile') || fileNames.includes('docker-compose.yml') || fileNames.includes('docker-compose.yaml')) {
     types.push('docker');
   }
   
   // 静态网站
-  if (fileNames.includes('index.html')) {
+  if (fileNames.includes('index.html') && !types.includes('vue') && !types.includes('react')) {
     types.push('static');
+  }
+  
+  // 爬虫项目
+  if (fileNames.includes('scrapy.cfg') || fileNames.includes('spider') || fileNames.includes('crawler')) {
+    types.push('crawler');
   }
   
   return types.length > 0 ? types : ['unknown'];
@@ -385,22 +441,61 @@ async function getLocalProjectInfo(projectPath) {
       hasPackageJson: await fs.pathExists(packageJsonPath),
       hasRequirements: await fs.pathExists(requirementsPath),
       hasReadme: await fs.pathExists(readmePath),
-      files: []
+      files: [],
+      types: []
     };
-    
-    if (info.hasPackageJson) {
-      const pkg = await fs.readJson(packageJsonPath);
-      info.packageJson = pkg;
-    }
-    
-    if (info.hasRequirements) {
-      const req = await fs.readFile(requirementsPath, 'utf8');
-      info.requirements = req.split('\n').filter(l => l.trim());
-    }
     
     // 列出文件
     const files = await fs.readdir(projectPath);
     info.files = files;
+    const fileNames = files.map(f => f.toLowerCase());
+    
+    // 本地项目类型检测
+    const types = [];
+    // Node.js
+    if (fileNames.includes('package.json')) {
+      types.push('nodejs');
+      const pkg = await fs.readJson(packageJsonPath);
+      info.packageJson = pkg;
+      const depStr = JSON.stringify({ ...pkg.dependencies, ...pkg.devDependencies } || {});
+      if (depStr.includes('vue')) types.push('vue');
+      if (depStr.includes('react')) types.push('react');
+      if (depStr.includes('next')) types.push('nextjs');
+      if (depStr.includes('nuxt')) types.push('nuxtjs');
+    }
+    // Python
+    if (fileNames.includes('requirements.txt') || fileNames.includes('setup.py') || fileNames.includes('pyproject.toml') || fileNames.includes('pipfile')) {
+      types.push('python');
+      if (fileNames.includes('requirements.txt')) {
+        const req = await fs.readFile(requirementsPath, 'utf8');
+        info.requirements = req.split('\n').filter(l => l.trim());
+        if (req.includes('django') || fileNames.includes('manage.py')) types.push('django');
+        if (req.includes('flask') || req.includes('fastapi')) types.push('python-web');
+        if (req.includes('torch') || req.includes('tensorflow')) types.push('ai-model');
+      }
+    }
+    // Go
+    if (fileNames.includes('go.mod')) types.push('go');
+    // Rust
+    if (fileNames.includes('cargo.toml')) types.push('rust');
+    // Java
+    if (fileNames.includes('pom.xml') || fileNames.includes('build.gradle')) types.push('java');
+    // PHP
+    if (fileNames.includes('composer.json') || fileNames.includes('index.php')) types.push('php');
+    // .NET
+    if (fileNames.some(f => f.endsWith('.csproj') || f.endsWith('.sln'))) types.push('dotnet');
+    // Docker
+    if (fileNames.includes('dockerfile') || fileNames.includes('docker-compose.yml') || fileNames.includes('docker-compose.yaml')) types.push('docker');
+    // 静态网站
+    if (fileNames.includes('index.html') && !types.includes('vue') && !types.includes('react')) types.push('static');
+    // 爬虫项目
+    if (fileNames.includes('scrapy.cfg') || fileNames.includes('spider') || fileNames.includes('crawler')) types.push('crawler');
+    
+    info.types = types.length > 0 ? types : ['unknown'];
+    
+    if (info.hasReadme) {
+      info.readme = await fs.readFile(readmePath, 'utf8');
+    }
     
     return info;
   } catch (error) {

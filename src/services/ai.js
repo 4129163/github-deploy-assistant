@@ -262,14 +262,28 @@ async function analyzeRepo(repoData, provider = null) {
   const messages = [
     {
       role: 'system', 
-      content: '你是一个专业的 DevOps 工程师，擅长分析 GitHub 项目并给出部署建议。请用中文回答，内容清晰简洁。输出必须包含项目所需的硬件配置（CPU核数、内存GB、磁盘空间GB）。'
+      content: '你是一个专业的 DevOps 工程师，擅长精准分析各类GitHub项目类型并给出最优部署建议。首先必须准确识别项目技术栈和类型，支持识别：Node.js、Python、Java、Go、Rust、PHP、.NET、Vue、React、静态网页、Docker项目、AI大模型项目、爬虫项目、后端API项目、客户端应用等所有主流项目类型。请用中文回答，内容清晰简洁，输出必须严格包含：项目准确类型、所需硬件配置（CPU核数、内存GB、磁盘空间GB）、依赖环境版本要求。'
     },
     {
       role: 'user', 
-      content: `请分析以下 GitHub 仓库信息，并给出详细的部署和硬件建议：\n\n${JSON.stringify(repoData, null, 2)}\n\n请严格按以下 JSON 格式返回：\n{\n  "analysis": "...",\n  "requirements": { "cpu": 1, "memory_gb": 2, "disk_gb": 1 },\n  "stack": ["..."],\n  "recommendation": "..."\n}`
+      content: `请分析以下 GitHub 仓库信息，并给出详细的部署和硬件建议：\n\n${JSON.stringify(repoData, null, 2)}\n\n请严格按以下 JSON 格式返回，确保JSON语法完全正确，没有多余字符：\n{\n  "project_type": "准确的项目类型，如Go后端项目/Java SpringBoot项目/Rust命令行工具等",\n  "analysis": "项目功能和架构分析",\n  "requirements": { "cpu": 1, "memory_gb": 2, "disk_gb": 1 },\n  "dependencies": ["所需依赖和版本要求，如go 1.22+, jdk 17+"],\n  "stack": ["技术栈列表"],\n  "recommendation": "详细部署步骤和注意事项"\n}`
     }
   ];
-  return await chat(messages, provider, { jsonMode: true });
+  // 增加重试机制，提升成功率
+  let retryCount = 0;
+  while (retryCount < 2) {
+    try {
+      const result = await chat(messages, provider);
+      // 尝试解析JSON确保返回格式正确
+      JSON.parse(result);
+      return result;
+    } catch (err) {
+      retryCount++;
+      if (retryCount === 2) throw err;
+      logger.info(`AI分析失败，正在重试第${retryCount}次...`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  }
 }
 
 /**
