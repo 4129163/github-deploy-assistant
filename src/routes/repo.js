@@ -6,11 +6,38 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs-extra');
 const path = require('path');
-const { analyzeRepository, cloneRepository, parseGitHubUrl } = require('../services/github');
+const multer = require('multer');
+const { analyzeRepository, cloneRepository, parseGitHubUrl, getLocalProjectInfo } = require('../services/github');
 const { analyzeRepo, getAvailableProviders } = require('../services/ai');
 const { ProjectDB } = require('../services/database');
 const { logger } = require('../utils/logger');
 const { WORK_DIR } = require('../config');
+const { checkGitHubNetwork } = require('../services/network-checker');
+const { getBestCloneStrategy } = require('../services/clone-optimizer');
+
+// 配置文件上传
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(WORK_DIR, '_uploads');
+    fs.ensureDirSync(uploadDir);
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB 限制
+  fileFilter: (req, file, cb) => {
+    if (file.originalname.endsWith('.zip') || file.originalname.endsWith('.tar.gz') || file.originalname.endsWith('.tar')) {
+      cb(null, true);
+    } else {
+      cb(new Error('只允许上传 zip/tar.gz/tar 格式的压缩包'));
+    }
+  }
+});
 
 // 简单内存限速：analyze 接口每 IP 每 10 秒最多 3 次
 const analyzeRateLimit = {};
@@ -24,6 +51,116 @@ function checkRateLimit(ip) {
   analyzeRateLimit[ip].push(now);
   return true;
 }
+
+/**
+ * 检测 GitHub 网络状态
+ * GET /api/repo/network-check
+ */
+router.get('/network-check', async (req, res) => {
+  try {
+    const networkStatus = await checkGitHubNetwork();
+    res.json({ success: true, data: networkStatus });
+  } catch (error) {
+    logger.error('Network check error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 手动上传项目压缩包
+ * POST /api/repo/upload
+ */
+router.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    const { name, types } = req.body;
+    if (!req.file) {
+      return res.status(400).json({ error: '请上传项目压缩包' });
+    }
+
+    const fileName = req.file.originalname;
+    const projectName = name || fileName.replace(/\.(zip|tar\.gz|tar)$/, '');
+    const uploadPath = req.file.path;
+    const targetPath = path.join(WORK_DIR, projectName);
+
+    // 确保目标目录不存在
+    if (await fs.pathExists(targetPath)) {
+      const backupPath = targetPath + '_backup_' + Date.now();
+      await fs.move(targetPath, backupPath);
+    }
+    await fs.ensureDir(targetPath);
+
+    // 解压文件
+    logger.info(`Extracting ${uploadPath} to ${targetPath}`);
+    const { exec } = require('child_process');
+    let extractCmd = '';
+    
+    if (fileName.endsWith('.zip')) {
+      extractCmd = `unzip -o "${uploadPath}" -d "${targetPath}"`;
+    } else if (fileName.endsWith('.tar.gz') || fileName.endsWith('.tar')) {
+      extractCmd = `tar -xf "${uploadPath}" -C "${targetPath}"`;
+    }
+
+    await new Promise((resolve, reject) => {
+      exec(extractCmd, (error, stdout, stderr) => {
+        if (error) {
+          logger.error(`Extract error: ${error.message}`);
+          return reject(new Error('压缩包解压失败，请检查文件格式是否正确'));
+        }
+        resolve();
+      });
+    });
+
+    // 清理上传的压缩包
+    await fs.remove(uploadPath);
+
+    // 检查解压后的目录结构，如果只有一个子目录，把内容移出来
+    const files = await fs.readdir(targetPath);
+    if (files.length === 1) {
+      const subDir = path.join(targetPath, files[0]);
+      const stat = await fs.stat(subDir);
+      if (stat.isDirectory()) {
+        const subFiles = await fs.readdir(subDir);
+        for (const f of subFiles) {
+          await fs.move(path.join(subDir, f), path.join(targetPath, f));
+        }
+        await fs.remove(subDir);
+      }
+    }
+
+    // 分析本地项目
+    const localInfo = await getLocalProjectInfo(targetPath);
+    if (!localInfo) {
+      return res.status(500).json({ error: '项目分析失败' });
+    }
+
+    // 保存到数据库
+    const project = await ProjectDB.create({
+      name: projectName,
+      repo_url: 'manual-upload',
+      local_path: targetPath,
+      status: 'cloned',
+      project_type: types?.join(',') || localInfo.types?.join(','),
+      config: {
+        packageJson: localInfo.packageJson,
+        isManualUpload: true
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      data: project,
+      message: '项目上传成功，可继续部署' 
+    });
+
+  } catch (error) {
+    logger.error('Upload error:', error);
+    // 清理临时文件
+    if (req.file?.path) {
+      try { await fs.remove(req.file.path); } catch (_) {}
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /**
  * 解析仓库
@@ -43,6 +180,21 @@ router.post('/analyze', async (req, res) => {
     const parsed = parseGitHubUrl(url);
     if (!parsed) return res.status(400).json({ error: '无效的 GitHub 地址，请检查格式' });
 
+    // 先检测网络状态
+    const networkStatus = await checkGitHubNetwork();
+    
+    // 网络完全不通的情况
+    if (networkStatus.quality === 'unreachable') {
+      return res.status(200).json({ 
+        success: true, 
+        data: {
+          networkStatus,
+          manualUploadAvailable: true,
+          hint: '当前网络无法访问 GitHub API，建议选择手动上传项目压缩包，或检查网络后重试。'
+        }
+      });
+    }
+
     logger.info(`Analyzing repository: ${url}`);
     const analysis = await analyzeRepository(url);
 
@@ -60,9 +212,21 @@ router.post('/analyze', async (req, res) => {
       logger.warn(`AI analysis failed: ${err.message}`);
     }
 
-    res.json({ success: true, data: { ...analysis, aiAnalysis, aiError } });
+    res.json({ success: true, data: { ...analysis, networkStatus, aiAnalysis, aiError } });
   } catch (error) {
     logger.error('Analyze error:', error);
+    // 如果分析失败，检查是否是网络问题
+    const networkStatus = await checkGitHubNetwork();
+    if (networkStatus.quality !== 'smooth') {
+      return res.status(200).json({ 
+        success: true, 
+        data: {
+          networkStatus,
+          manualUploadAvailable: true,
+          hint: 'GitHub 访问失败，建议选择手动上传项目压缩包，或检查网络后重试。'
+        }
+      });
+    }
     res.status(500).json({ error: error.message });
   }
 });

@@ -343,8 +343,13 @@ async function cloneRepository(url, targetPath) {
     
     // 自动选择最快的下载路径
     const strategy = await getBestCloneStrategy(url);
-    logger.info(`Using clone strategy: ${strategy.mode} - ${strategy.url}`);
+    logger.info(`Using clone strategy: ${strategy.mode}`);
     if (global.broadcastLog) global.broadcastLog('system', `🌐 网络诊断：${strategy.note}`);
+
+    // 手动模式：无法自动克隆，提示用户上传
+    if (strategy.mode === 'manual') {
+      throw new Error(strategy.note);
+    }
 
     const timeoutMs = parseInt(process.env.CLONE_TIMEOUT_MS, 10) || 300000; // 5分钟
     const git = simpleGit({ timeout: { block: timeoutMs } });
@@ -357,7 +362,13 @@ async function cloneRepository(url, targetPath) {
     // 克隆失败时清理残留目录
     try { await fs.remove(targetPath); } catch (_) {}
     logger.error(`Clone failed: ${error.message}`);
-    throw new Error(`克隆仓库失败: ${error.message}。请检查网络或仓库地址是否正确。`);
+    
+    // 如果是网络相关错误，提示手动上传选项
+    if (error.message.includes('无法访问') || error.message.includes('timed out') || error.message.includes('timeout')) {
+      throw new Error(`${error.message}。也可以选择手动上传项目压缩包进行部署。`);
+    }
+    
+    throw new Error(`克隆仓库失败: ${error.message}。请检查网络或仓库地址是否正确，或尝试手动上传。`);
   }
 }
 
