@@ -211,6 +211,8 @@ const monitorRoutes = require('../routes/monitor');
 app.use('/api/monitor', monitorRoutes);
 const networkOptRoutes = require('../routes/network-opt');
 app.use('/api/network-opt', networkOptRoutes);
+const metricsRoutes = require('../routes/metrics');
+app.use('/api/metrics', metricsRoutes);
 
 // 新功能路由挂载
 app.use('/api/share', shareRoutes);               // 功能19：一键分享部署记录
