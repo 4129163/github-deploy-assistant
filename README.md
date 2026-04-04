@@ -134,7 +134,7 @@ npm run ui
 ✅ **预期看到**：
 ```
 GitHub Deploy Assistant Web UI
-服务器运行在: http://localhost:3000
+服务器运行在: http://localhost:3456
 按 Ctrl+C 停止服务器
 ```
 
@@ -147,16 +147,68 @@ npm run cli
 ### 第四步：访问Web界面
 
 1. 打开浏览器（Chrome/Edge/Firefox都可以）
-2. 输入地址：`http://localhost:3000`
+2. 输入地址：`http://localhost:3456`
 3. 看到漂亮的界面啦！🎉
 
 ---
+
+## 🐳 使用Docker快速体验（推荐）
+
+如果你已经安装了Docker，可以使用以下命令快速体验：
+
+### 方法一：使用Docker直接运行
+```bash
+# 一键运行，体验GitHub Deploy Assistant
+docker run -p 3456:3456 -v ./workspace:/workspace kai0339/github-deploy-assistant:latest
+```
+
+### 方法二：使用Docker Compose
+```bash
+# 1. 下载docker-compose配置文件
+curl -O https://gitee.com/kai0339/github-deploy-assistant/raw/main/docker-compose.example.yml
+
+# 2. 启动服务
+docker-compose -f docker-compose.example.yml up -d
+
+# 3. 查看日志
+docker-compose -f docker-compose.example.yml logs -f
+
+# 4. 停止服务
+docker-compose -f docker-compose.example.yml down
+```
+
+### 方法三：构建自己的Docker镜像
+```bash
+# 1. 克隆仓库
+git clone https://gitee.com/kai0339/github-deploy-assistant.git
+cd github-deploy-assistant
+
+# 2. 使用构建脚本
+chmod +x build-docker.sh
+./build-docker.sh
+
+# 3. 运行镜像
+docker run -p 3456:3456 -v ./workspace:/workspace -v ./logs:/app/logs kai0339/github-deploy-assistant:latest
+```
+
+**Docker体验优势**：
+- ✅ **无需安装Node.js**：镜像已包含所有依赖
+- ✅ **环境隔离**：不会污染主机环境
+- ✅ **一键启动**：一行命令即可体验
+- ✅ **数据持久化**：工作目录挂载到本地
+- ✅ **多版本支持**：轻松切换不同版本
+
+访问地址：`http://localhost:3456`
+
+---
+
+
 
 ## 🎮 使用方式
 
 ### 🌐 方式一：Web可视化界面（小白首选）
 
-**访问地址**：`http://localhost:3000`
+**访问地址**：`http://localhost:3456`
 
 #### 界面布局：
 ```
@@ -279,7 +331,7 @@ gada --help
 # 1. 确保GitHub Deploy Assistant正在运行
 npm run ui
 
-# 2. 打开浏览器访问：http://localhost:3000
+# 2. 打开浏览器访问：http://localhost:3456
 
 # 3. 点击"添加项目"按钮
 
@@ -290,7 +342,7 @@ https://github.com/facebook/create-react-app
 #   等待AI分析完成，你会看到：
 #   - 项目类型：React
 #   - 需要的依赖：Node.js, npm
-#   - 建议端口：3000
+#   - 建议端口：3456
 
 # 6. 点击"一键部署"按钮
 #   系统会自动：
@@ -300,7 +352,7 @@ https://github.com/facebook/create-react-app
 #   4. 显示访问地址
 
 # 7. 部署完成后，点击"启动项目"按钮
-# 8. 在浏览器访问：http://localhost:3000
+# 8. 在浏览器访问：http://localhost:3456
 #    看到React欢迎页面！🎉
 ```
 
@@ -376,7 +428,7 @@ Content-Type: application/json
 {
   "repoUrl": "https://github.com/facebook/react",
   "branch": "main",
-  "port": 3000
+  "port": 3456
 }
 ```
 
@@ -403,7 +455,7 @@ POST /api/precheck
 Content-Type: application/json
 
 {
-  "port": 3000,
+  "port": 3456,
   "requiredDeps": ["node", "git", "python3"]
 }
 ```
@@ -415,7 +467,7 @@ Content-Type: application/json
 
 {
   "issue": "port_in_use",
-  "port": 3000,
+  "port": 3456,
   "suggestedPort": 3001
 }
 ```
@@ -438,7 +490,7 @@ nano .env  # 或 code .env
 #### 重要配置项：
 ```env
 # 服务器端口
-PORT=3000
+PORT=3456
 
 # AI提供商（支持多种AI）
 DEFAULT_AI_PROVIDER=openai
@@ -523,8 +575,8 @@ npm install
 **解决**：
 ```bash
 # 1. 检查端口是否被占用
-lsof -i :3000  # Linux/macOS
-netstat -ano | findstr :3000  # Windows
+lsof -i :3456  # Linux/macOS
+netstat -ano | findstr :3456  # Windows
 
 # 2. 换一个端口
 PORT=4000 npm run ui
@@ -537,8 +589,8 @@ node --version  # 需要≥18.0.0
 **症状**：浏览器显示"无法连接"
 **解决**：
 1. 确认服务器正在运行：`npm run ui` 没有退出
-2. 检查防火墙：确保3000端口开放
-3. 尝试访问：`http://127.0.0.1:3000` 或 `http://localhost:3000`
+2. 检查防火墙：确保3456端口开放
+3. 尝试访问：`http://127.0.0.1:3456` 或 `http://localhost:3456`
 4. 检查浏览器控制台：按F12查看错误
 
 ### 问题3: 部署过程中卡住

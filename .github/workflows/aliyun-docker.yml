@@ -1,0 +1,132 @@
+name: Aliyun Docker Build and Push
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+
+env:
+  REGISTRY: registry.cn-hangzhou.aliyuncs.com
+  NAMESPACE: kai0339
+  IMAGE_NAME: github-deploy-assistant
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Aliyun Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.ALIYUN_DOCKER_USERNAME }}
+        password: ${{ secrets.ALIYUN_DOCKER_PASSWORD }}
+    
+    - name: Determine tags
+      id: tags
+      run: |
+        if [[ ${{ github.ref }} == refs/tags/v* ]]; then
+          echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "LATEST=true" >> $GITHUB_OUTPUT
+          echo "Using version tag: ${{ github.ref_name }}"
+        elif [[ ${{ github.ref }} == refs/heads/main ]] || [[ ${{ github.ref }} == refs/heads/master ]]; then
+          echo "TAG=latest" >> $GITHUB_OUTPUT
+          echo "LATEST=true" >> $GITHUB_OUTPUT
+          echo "Using latest tag"
+        else
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          BRANCH_SLUG=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
+          echo "TAG=$BRANCH_SLUG" >> $GITHUB_OUTPUT
+          echo "LATEST=false" >> $GITHUB_OUTPUT
+          echo "Using branch tag: $BRANCH_SLUG"
+        fi
+    
+    - name: Build Docker image
+      run: |
+        docker build \
+          -t ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.TAG }} \
+          .
+    
+    - name: Tag as latest if applicable
+      if: steps.tags.outputs.LATEST == 'true'
+      run: |
+        docker tag \
+          ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.TAG }} \
+          ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
+    
+    - name: Run container tests
+      run: |
+        echo "Running container tests..."
+        
+        # Start container
+        docker run -d \
+          -p 3456:3456 \
+          --name gada-test \
+          ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.TAG }}
+        
+        sleep 10
+        
+        # Check if container is running
+        if docker ps | grep -q gada-test; then
+          echo "Container is running"
+          
+          # Check health endpoint
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3456/api/health || echo "000")
+          if [ "$HEALTH_STATUS" = "200" ]; then
+            echo "Health check passed (HTTP $HEALTH_STATUS)"
+          else
+            echo "Health check failed (HTTP $HEALTH_STATUS)"
+            docker logs gada-test
+            exit 1
+          fi
+          
+          # Stop and remove container
+          docker stop gada-test
+          docker rm gada-test
+        else
+          echo "Container failed to start"
+          docker logs gada-test
+          exit 1
+        fi
+    
+    - name: Push Docker image
+      run: |
+        echo "Pushing image to Aliyun Container Registry..."
+        docker push ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.TAG }}
+        
+        if [ "${{ steps.tags.outputs.LATEST }}" = "true" ]; then
+          docker push ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:latest
+        fi
+    
+    - name: Generate deployment summary
+      run: |
+        echo "## 🚀 Docker镜像构建完成" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**镜像地址:**" >> $GITHUB_STEP_SUMMARY
+        echo "\`${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.TAG }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**运行命令:**" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo "docker run -p 3456:3456 -v ./workspace:/workspace ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.TAG }}" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Docker Compose示例:**" >> $GITHUB_STEP_SUMMARY
+        echo '```yaml' >> $GITHUB_STEP_SUMMARY
+        echo "version: '3.8'" >> $GITHUB_STEP_SUMMARY
+        echo "services:" >> $GITHUB_STEP_SUMMARY
+        echo "  gada:" >> $GITHUB_STEP_SUMMARY
+        echo "    image: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.TAG }}" >> $GITHUB_STEP_SUMMARY
+        echo "    ports:" >> $GITHUB_STEP_SUMMARY
+        echo "      - \"3456:3456\"" >> $GITHUB_STEP_SUMMARY
+        echo "    volumes:" >> $GITHUB_STEP_SUMMARY
+        echo "      - ./workspace:/workspace" >> $GITHUB_STEP_SUMMARY
+        echo "      - ./logs:/app/logs" >> $GITHUB_STEP_SUMMARY
+        echo "      - ./database:/app/database" >> $GITHUB_STEP_SUMMARY
+        echo "    restart: unless-stopped" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY

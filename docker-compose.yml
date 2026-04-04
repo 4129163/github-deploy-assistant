@@ -1,0 +1,71 @@
+# GitHub Deploy Assistant - Docker Compose 配置示例
+version: '3.8'
+
+services:
+  gada:
+    image: kai0339/github-deploy-assistant:latest
+    container_name: github-deploy-assistant
+    restart: unless-stopped
+    ports:
+      - "3456:3456"
+    volumes:
+      # 挂载工作目录，用于存储项目数据
+      - ./workspace:/workspace
+      # 挂载日志目录
+      - ./logs:/app/logs
+      # 挂载数据库目录
+      - ./database:/app/database
+    environment:
+      - NODE_ENV=production
+      - PORT=3456
+      - HOST=0.0.0.0
+      - WORK_DIR=/workspace
+      - ALLOW_AUTO_EXEC=true
+      - LOG_LEVEL=info
+      # 安全配置（建议在生产环境中设置）
+      # - GADA_SECRET_KEY=your-secret-key-here
+      # - SESSION_SECRET=your-session-secret
+      # - JWT_SECRET=your-jwt-secret
+    networks:
+      - gada-network
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3456/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # 可选：数据库服务（如果需要持久化存储）
+  # gada-db:
+  #   image: postgres:15-alpine
+  #   container_name: gada-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     - POSTGRES_DB=gada
+  #     - POSTGRES_USER=gada
+  #     - POSTGRES_PASSWORD=your-password-here
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - gada-network
+  #   ports:
+  #     - "5432:5432"
+
+networks:
+  gada-network:
+    driver: bridge
+
+volumes:
+  # 数据库数据卷
+  postgres_data:
+  # 本地挂载的目录已经在volumes中定义，不需要额外的volume配置

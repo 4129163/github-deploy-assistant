@@ -1,0 +1,17 @@
+# GitHub Deploy Assistant - Docker Compose 快速启动示例
+# 一键启动命令：docker-compose up -d
+
+version: '3.8'
+
+services:
+  github-deploy-assistant:
+    image: kai0339/github-deploy-assistant:latest
+    ports:
+      - "3456:3456"
+    volumes:
+      - ./workspace:/workspace
+      - ./logs:/app/logs
+      - ./database:/app/database
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
