@@ -91,7 +91,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     // 解压文件
     logger.info(`Extracting ${uploadPath} to ${targetPath}`);
-    const { exec } = require('child_process');
+    const { safeExec } = require('../utils/security');
     let extractCmd = '';
     
     if (fileName.endsWith('.zip')) {
@@ -100,15 +100,18 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       extractCmd = `tar -xf "${uploadPath}" -C "${targetPath}"`;
     }
 
-    await new Promise((resolve, reject) => {
-      exec(extractCmd, (error, stdout, stderr) => {
-        if (error) {
-          logger.error(`Extract error: ${error.message}`);
-          return reject(new Error('压缩包解压失败，请检查文件格式是否正确'));
-        }
-        resolve();
-      });
-    });
+    // 验证解压命令是否安全
+    const { validateCommand } = require('../utils/security');
+    const validation = validateCommand(extractCmd);
+    if (!validation.safe) {
+      throw new Error(`解压命令安全检查失败: ${validation.reason}`);
+    }
+
+    const result = await safeExec(extractCmd);
+    if (!result.success) {
+      logger.error(`Extract error: ${result.stderr}`);
+      throw new Error('压缩包解压失败，请检查文件格式是否正确');
+    }
 
     // 清理上传的压缩包
     await fs.remove(uploadPath);

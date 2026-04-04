@@ -1,17 +1,23 @@
 /**
  * 系统环境检测路由
+ * 安全增强版 - 防止命令注入
  */
 
 const express = require('express');
 const router = express.Router();
-const { exec } = require('child_process');
-const { promisify } = require('util');
-const execAsync = promisify(exec);
+const { safeExec } = require('../utils/security');
 
 async function checkTool(cmd, versionFlag = '--version') {
   try {
-    const { stdout } = await execAsync(`${cmd} ${versionFlag}`);
-    return { installed: true, version: stdout.trim().split('\n')[0] };
+    // 构建安全的命令
+    const command = `${cmd} ${versionFlag}`;
+    const result = await safeExec(command);
+    
+    if (result.success) {
+      return { installed: true, version: result.stdout.trim().split('\n')[0] };
+    } else {
+      return { installed: false, version: null };
+    }
   } catch (_) {
     return { installed: false, version: null };
   }

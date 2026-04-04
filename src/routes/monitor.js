@@ -9,18 +9,21 @@
 const express = require('express');
 const router = express.Router();
 const os = require('os');
-const { exec } = require('child_process');
-const { promisify } = require('util');
+const { safeExec } = require('../utils/security');
 const { ProjectDB } = require('../services/database');
-const execAsync = promisify(exec);
 
 // 内存中保存最近 60 条快照（约 5 分钟）
 const HISTORY_MAX = 60;
 const snapHistory = [];
 
 async function run(cmd) {
-  try { const { stdout } = await execAsync(cmd, { timeout: 5000 }); return stdout.trim(); }
-  catch (_) { return ''; }
+  try { 
+    const result = await safeExec(cmd, { timeout: 5000 }); 
+    return result.stdout.trim(); 
+  }
+  catch (_) { 
+    return ''; 
+  }
 }
 
 async function takeCPUSnapshot() {

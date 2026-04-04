@@ -223,16 +223,18 @@ async function buildUninstallPreview(project) {
 
 async function getDirSize(dirPath) {
   // 用 du -sb 快速估算，避免递归大量小文件（node_modules 等）
-  const { exec } = require('child_process');
-  return new Promise((resolve) => {
-    exec(`du -sb "${dirPath}" 2>/dev/null || du -sk "${dirPath}" 2>/dev/null`, (err, stdout) => {
-      if (err || !stdout) return resolve(0);
-      const parts = stdout.trim().split(/\s+/);
-      const val = parseInt(parts[0], 10);
-      // du -sk 返回 KB，du -sb 返回 bytes；简单判断：若值很小可能是KB
-      resolve(isNaN(val) ? 0 : val);
-    });
-  });
+  const { safeExec } = require('../utils/security');
+  try {
+    const result = await safeExec(`du -sb "${dirPath}" 2>/dev/null || du -sk "${dirPath}" 2>/dev/null`);
+    if (!result.success || !result.stdout) return 0;
+    
+    const parts = result.stdout.trim().split(/\s+/);
+    const val = parseInt(parts[0], 10);
+    // du -sk 返回 KB，du -sb 返回 bytes；简单判断：若值很小可能是KB
+    return isNaN(val) ? 0 : val;
+  } catch (error) {
+    return 0;
+  }
 }
 
 function formatSize(bytes) {
@@ -341,8 +343,7 @@ router.delete('/:id', async (req, res) => {
 router.get('/orphans', async (req, res) => {
   try {
     const { WORK_DIR } = require('../config');
-    const { promisify } = require('util');
-    const execAsync = promisify(require('child_process').exec);
+    const { safeExec } = require('../utils/security');
     const allDirs = await fs.readdir(WORK_DIR).catch(() => []);
     const projects = await ProjectDB.getAll();
     const knownPaths = new Set(projects.map(p => path.basename(p.local_path || '')));
@@ -354,7 +355,12 @@ router.get('/orphans', async (req, res) => {
       if (!stat?.isDirectory()) continue;
       if (!knownPaths.has(dir)) {
         let size = '?';
-        try { const r = await execAsync(`du -sh "${full}" 2>/dev/null`); size = r.stdout.split('\t')[0]; } catch (_) {}
+        try { 
+          const result = await safeExec(`du -sh "${full}" 2>/dev/null`);
+          if (result.success && result.stdout) {
+            size = result.stdout.split('\t')[0]; 
+          }
+        } catch (_) {}
         orphans.push({ name: dir, path: full, size: size.trim() });
       }
     }

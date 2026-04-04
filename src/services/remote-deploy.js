@@ -256,9 +256,18 @@ function buildRemoteCommands(project, projectDir, types) {
 }
 
 /**
- * 在远程主机上执行任意命令（调试用）
+ * 在远程主机上执行任意命令（调试用，带安全检查）
  */
 async function remoteExec(hostId, command, cwd = null) {
+  // 导入安全验证模块
+  const { validateRemoteCommand } = require('../utils/security');
+  
+  // 验证命令是否安全
+  const validation = validateRemoteCommand(command);
+  if (!validation.safe) {
+    throw new Error(`远程命令安全检查失败: ${validation.reason}`);
+  }
+  
   let ssh;
   try {
     ssh = await createSSHConnection(hostId);

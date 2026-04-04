@@ -8,107 +8,82 @@ const fs = require('fs-extra');
 const { logger } = require('../utils/logger');
 const { DeployLogDB } = require('./database');
 const { ALLOW_AUTO_EXEC } = require('../config');
-
-// 允许的命令白名单（正则）
-const ALLOWED_COMMANDS = [
-  /^node\b/,
-  /^npm\s+(install|start|run\s+\w+|ci)\b/,
-  /^yarn\s+(install|start|run\s+\w+)\b/,
-  /^pnpm\s+(install|start|run\s+\w+)\b/,
-  /^pip3?\s+install\b/,
-  /^python3?\s+/,
-  /^docker\s+(build|run|compose)\b/,
-  /^go\s+(build|run|mod)\b/,
-  /^cargo\s+(build|run)\b/,
-  /^mvn\s+/,
-  /^gradle\s+/,
-];
-
-/**
- * 验证命令是否在白名单内
- */
-function validateCommand(command) {
-  const trimmed = command.trim();
-  for (const pattern of ALLOWED_COMMANDS) {
-    if (pattern.test(trimmed)) return true;
-  }
-  return false;
-}
+const { 
+  validateCommand, 
+  validateWorkingDirectory, 
+  safeExec, 
+  safeSpawn,
+  buildSafeArgs 
+} = require('../utils/security');
 
 /**
  * 执行命令（带输出捕获）
- * 只允许白名单内的命令，防止命令注入
+ * 使用安全工具防止命令注入
  */
-function executeCommand(command, cwd, env = {}) {
-  return new Promise((resolve) => {
-    // 安全检查：验证命令是否在白名单内
-    if (!validateCommand(command)) {
-      logger.warn(`Blocked disallowed command: ${command}`);
-      resolve({
+async function executeCommand(command, cwd, env = {}) {
+  try {
+    // 安全检查：验证命令是否安全
+    const commandValidation = validateCommand(command);
+    if (!commandValidation.safe) {
+      logger.warn(`Blocked disallowed command: ${command} - ${commandValidation.reason}`);
+      return {
         success: false,
         exitCode: -1,
-        error: `Command not allowed: ${command}`,
-        outputs: [{ type: 'error', data: `Security: command not in allowlist: ${command}`, time: Date.now() }]
-      });
-      return;
+        error: `Command not allowed: ${commandValidation.reason}`,
+        outputs: [{ type: 'error', data: `Security: ${commandValidation.reason}`, time: Date.now() }]
+      };
     }
 
-    // 确保 cwd 在 workspace 内，防止路径穿越
-    const resolvedCwd = path.resolve(cwd);
+    // 安全检查：验证工作目录
     const workspaceRoot = path.resolve(require('../config').WORK_DIR);
-    if (!resolvedCwd.startsWith(workspaceRoot)) {
-      logger.warn(`Blocked path traversal attempt: ${cwd}`);
-      resolve({
+    const dirValidation = validateWorkingDirectory(cwd, workspaceRoot);
+    if (!dirValidation.safe) {
+      logger.warn(`Blocked path traversal attempt: ${cwd} - ${dirValidation.reason}`);
+      return {
         success: false,
         exitCode: -1,
-        error: 'Working directory must be inside workspace',
-        outputs: [{ type: 'error', data: 'Security: path traversal blocked', time: Date.now() }]
-      });
-      return;
+        error: `Working directory validation failed: ${dirValidation.reason}`,
+        outputs: [{ type: 'error', data: `Security: ${dirValidation.reason}`, time: Date.now() }]
+      };
     }
 
-    const outputs = [];
+    const resolvedCwd = dirValidation.normalized;
     logger.info(`Executing: ${command} in ${resolvedCwd}`);
 
-    const child = exec(command, {
+    // 使用安全执行函数
+    const result = await safeExec(command, {
       cwd: resolvedCwd,
       env: { ...process.env, ...env },
-      timeout: parseInt(process.env.DEPLOY_TIMEOUT_MS, 10) || 600000, // 默认10分钟，可通过 DEPLOY_TIMEOUT_MS 环境变量调整
-      maxBuffer: 10 * 1024 * 1024 // 10MB 缓冲区
+      timeout: parseInt(process.env.DEPLOY_TIMEOUT_MS, 10) || 600000, // 默认10分钟
+      maxBuffer: 10 * 1024 * 1024 // 10MB
     });
 
-    child.stdout.on('data', (data) => {
-      const line = data.toString();
-      outputs.push({ type: 'stdout', data: line, time: Date.now() });
-      logger.debug(`[stdout] ${line.trim()}`);
-    });
+    // 转换为旧格式以保持兼容性
+    const outputs = [];
+    if (result.stdout) {
+      outputs.push({ type: 'stdout', data: result.stdout, time: Date.now() });
+      logger.debug(`[stdout] ${result.stdout.trim()}`);
+    }
+    if (result.stderr) {
+      outputs.push({ type: 'stderr', data: result.stderr, time: Date.now() });
+      logger.debug(`[stderr] ${result.stderr.trim()}`);
+    }
 
-    child.stderr.on('data', (data) => {
-      const line = data.toString();
-      outputs.push({ type: 'stderr', data: line, time: Date.now() });
-      logger.debug(`[stderr] ${line.trim()}`);
-    });
-
-    child.on('close', (code) => {
-      logger.info(`Command exited with code: ${code}`);
-      resolve({
-        success: code === 0,
-        exitCode: code,
-        outputs
-      });
-    });
-
-    child.on('error', (error) => {
-      logger.error(`Command error: ${error.message}`);
-      outputs.push({ type: 'error', data: error.message, time: Date.now() });
-      resolve({
-        success: false,
-        exitCode: -1,
-        error: error.message,
-        outputs
-      });
-    });
-  });
+    return {
+      success: result.success,
+      exitCode: result.exitCode,
+      outputs,
+      error: result.error
+    };
+  } catch (error) {
+    logger.error(`Command execution error: ${error.message}`);
+    return {
+      success: false,
+      exitCode: -1,
+      error: error.message,
+      outputs: [{ type: 'error', data: error.message, time: Date.now() }]
+    };
+  }
 }
 
 /**
