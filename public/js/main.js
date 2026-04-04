@@ -915,30 +915,98 @@ function oneClickDeploy() {
     const projectName = elements.projectNameInput.value.trim() || 'new-project';
     const port = elements.projectPortInput.value || '3000';
     
+    // 创建新项目
+    const newProject = {
+        id: projects.length + 1,
+        name: projectName,
+        type: 'Node.js', // 根据实际分析结果
+        port: parseInt(port),
+        path: `/home/user/projects/${projectName}`,
+        status: 'deploying',
+        lastActive: new Date().toISOString()
+    };
+    
+    projects.push(newProject);
+    updateProjectList();
+    
+    // 启动部署日志面板
+    if (window.deployLogManager) {
+        const deployLog = window.deployLogManager.startDeployLog(newProject.id, newProject.name);
+        
+        // 显示部署日志面板
+        const deployLogPanel = document.getElementById('deploy-log-panel');
+        if (deployLogPanel) {
+            deployLogPanel.style.display = 'block';
+        }
+    }
+    
+    // 调用实时部署API
     showLoading(`正在一键部署 ${repoUrl}...`);
     
-    // 模拟部署过程
-    setTimeout(() => {
-        // 创建新项目
-        const newProject = {
-            id: projects.length + 1,
-            name: projectName,
-            type: 'Node.js', // 根据实际分析结果
-            port: parseInt(port),
-            path: `/home/user/projects/${projectName}`,
-            status: 'running',
-            lastActive: new Date().toISOString()
-        };
-        
-        projects.push(newProject);
-        updateProjectList();
-        
-        addLog('success', `项目 ${projectName} 一键部署完成！`);
+    fetch(`/api/deploy/auto/${newProject.id}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            repoUrl,
+            projectName,
+            port
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        if (data.success) {
+            // 更新项目状态为运行中
+            newProject.status = 'running';
+            updateProjectList();
+            
+            addLog('success', `项目 ${projectName} 一键部署完成！`);
+            
+            // 自动选择新项目
+            selectProject(newProject.id);
+            
+            // 部署完成，关闭日志面板
+            if (window.deployLogManager) {
+                const deployLog = window.deployLogManager.getDeployLog(newProject.id);
+                if (deployLog) {
+                    deployLog.complete(true, '部署成功完成');
+                }
+            }
+        } else {
+            // 部署失败
+            newProject.status = 'error';
+            updateProjectList();
+            
+            showError(`部署失败: ${data.error}`);
+            
+            // 部署失败，关闭日志面板
+            if (window.deployLogManager) {
+                const deployLog = window.deployLogManager.getDeployLog(newProject.id);
+                if (deployLog) {
+                    deployLog.complete(false, `部署失败: ${data.error}`);
+                }
+            }
+        }
+    })
+    .catch(error => {
         hideLoading();
         
-        // 自动选择新项目
-        selectProject(newProject.id);
-    }, 3000);
+        // 更新项目状态为错误
+        newProject.status = 'error';
+        updateProjectList();
+        
+        showError(`部署请求失败: ${error.message}`);
+        
+        // 部署失败，关闭日志面板
+        if (window.deployLogManager) {
+            const deployLog = window.deployLogManager.getDeployLog(newProject.id);
+            if (deployLog) {
+                deployLog.complete(false, `部署请求失败: ${error.message}`);
+            }
+        }
+    });
 }
 
 function stepByStepDeploy() {

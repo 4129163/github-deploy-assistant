@@ -7,6 +7,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs-extra');
 const { autoDeploy, generateManualGuide } = require('../services/deploy');
+const { startDeployStream } = require('../services/deploy-stream');
 const { diagnoseAndSuggestFix, applyAutoFix } = require('../services/error-fixer');
 const { evaluateCompatibility } = require('../services/compatibility-checker');
 const { runDeviceScan } = require('../services/device-scan');
@@ -84,7 +85,7 @@ router.post('/fix/:projectId', async (req, res) => {
 });
 
 /**
- * 自动部署（带 WebSocket 实时日志）
+ * 自动部署（带 WebSocket 实时日志流）
  * POST /api/deploy/auto/:projectId
  */
 router.post('/auto/:projectId', async (req, res) => {
@@ -99,23 +100,23 @@ router.post('/auto/:projectId', async (req, res) => {
     // 部署前备份
     await backupProject(project);
 
-    const outputs = [];
-    const result = await autoDeploy(project, (progress) => {
-      outputs.push(progress);
-      // 实时推送到 WebSocket
-      if (global.broadcastLog) {
-        global.broadcastLog(projectId, progress.message || JSON.stringify(progress));
+    // 使用增强的部署流服务
+    const result = await startDeployStream(projectId, project, {
+      onProgress: (progress, stage) => {
+        // 进度回调，如果需要可处理
       }
     });
 
     await ProjectDB.update(projectId, { status: result.success ? 'deployed' : 'failed' });
 
-    // 广播部署完成事件
-    if (global.broadcast) {
-      global.broadcast('deploy_done', { projectId, success: result.success });
-    }
-
-    res.json({ success: result.success, data: { outputs } });
+    res.json({ 
+      success: result.success, 
+      data: { 
+        deployStreamId: result.streamId,
+        projectId,
+        errors: result.errors
+      } 
+    });
   } catch (error) {
     logger.error('Auto deploy error:', error);
     res.status(500).json({ error: error.message });
