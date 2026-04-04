@@ -1,1093 +1,402 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GADA - GitHub 项目部署助手</title>
-  <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Deploy Assistant - 可视化部署管理器</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
 </head>
 <body>
-  <div class="app">
-
-    <!-- ===== 顶栏 ===== -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <span class="logo-icon">🚀</span>
-        <div class="logo-info">
-          <span class="logo-text">GADA</span>
-          <span class="logo-sub">GitHub 部署助手</span>
-        </div>
-      </div>
-      <div class="topbar-right">
-        <span id="envBadge" class="badge badge-env">检测环境中...</span>
-        <button id="themeToggle" class="icon-btn" title="切换主题">🌙</button>
-      </div>
-    </header>
-
-    <!-- ===== 侧边导航 ===== -->
-    <nav class="sidebar">
-      <div class="nav-group">
-        <button class="nav-item active" data-tab="home">
-          <span class="nav-icon">🏠</span><span class="nav-label">部署项目</span>
-        </button>
-        <button class="nav-item" data-tab="projects">
-          <span class="nav-icon">📂</span><span class="nav-label">项目管理</span>
-          <span class="nav-badge" id="projectCountBadge" style="display:none"></span>
-        </button>
-        <button class="nav-item" data-tab="scan">
-          <span class="nav-icon">🔍</span><span class="nav-label">扫描发现</span>
-        </button>
-        <button class="nav-item" data-tab="search">
-          <span class="nav-icon">🌐</span><span class="nav-label">搜索项目</span>
-        </button>
-        <button class="nav-item" data-tab="device">
-          <span class="nav-icon">💻</span><span class="nav-label">设备状态</span>
-        </button>
-        <button class="nav-item" data-tab="software">
-          <span class="nav-icon">📦</span><span class="nav-label">软件管理</span>
-        </button>
-        <button class="nav-item" data-tab="envguide">
-          <span class="nav-icon">📚</span><span class="nav-label">环境指南</span>
-        </button>
-        <button class="nav-item" data-tab="envcheck">
-          <span class="nav-icon">🔧</span><span class="nav-label">环境检测</span>
-        </button>
-        <button class="nav-item" data-tab="templates">
-          <span class="nav-icon">📋</span><span class="nav-label">部署模板</span>
-        </button>
-      </div>
-      <div class="nav-divider"></div>
-      <div class="nav-group">
-        <button class="nav-item" data-tab="system">
-          <span class="nav-icon">🖥️</span><span class="nav-label">系统状态</span>
-        </button>
-        <button class="nav-item" data-tab="logs">
-          <span class="nav-icon">📄</span><span class="nav-label">日志浏览</span>
-        </button>
-        <button class="nav-item" data-tab="monitor">
-          <span class="nav-icon">📊</span><span class="nav-label">资源监控</span>
-        </button>
-        <button class="nav-item" data-tab="ai">
-          <span class="nav-icon">🤖</span><span class="nav-label">AI 设置</span>
-          <span class="nav-dot" id="aiStatusDot"></span>
-        </button>
-      </div>
-      <div class="nav-divider"></div>
-      <div class="nav-group">
-        <button class="nav-item" data-tab="share">
-          <span class="nav-icon">🔗</span><span class="nav-label">分享记录</span>
-        </button>
-        <button class="nav-item" data-tab="remote">
-          <span class="nav-icon">🌍</span><span class="nav-label">远程部署</span>
-        </button>
-        <button class="nav-item" data-tab="webhookx">
-          <span class="nav-icon">⚡</span><span class="nav-label">自动触发</span>
-        </button>
-        <button class="nav-item" data-tab="private">
-          <span class="nav-icon">🔒</span><span class="nav-label">私有仓库</span>
-        </button>
-      </div>
-    </nav>
-
-    <!-- ===== 主内容区 ===== -->
-    <main class="content">
-
-      <!-- ========== 首页：部署向导 ========== -->
-      <div id="home" class="tab active">
-
-        <!-- 步骤1：输入 URL -->
-        <div id="step-input" class="wizard-step">
-          <div class="hero">
-            <div class="hero-badge">✨ 零基础也能用</div>
-            <h1>把 GitHub 项目<br>装到你的电脑</h1>
-            <p class="hero-sub">粘贴仓库链接，剩下的全交给我 👇</p>
-          </div>
-
-          <div class="url-card">
-            <!-- 模式切换 -->
-            <div style="display:flex;gap:.5rem;margin-bottom:.75rem">
-              <button id="modeLinkBtn" class="btn btn-primary btn-sm" onclick="setDeployMode('link')">🔗 粘贴链接</button>
-              <button id="modeNlBtn" class="btn btn-ghost btn-sm" onclick="setDeployMode('nl')">💬 自然语言</button>
-            </div>
-            <div class="url-box">
-              <div class="url-input-wrap">
-                <span class="url-prefix-icon" id="urlPrefixIcon">🔗</span>
-                <input id="repoUrl" type="text"
-                  placeholder="https://github.com/用户名/项目名"
-                  class="url-input" autofocus>
-                <button id="clearUrlBtn" class="url-clear-btn hidden" title="清除">✕</button>
-              </div>
-              <button id="analyzeBtn" class="btn btn-primary btn-lg">
-                <span class="btn-icon">🔍</span> 开始分析
-              </button>
-            </div>
-            <p class="url-hint" id="urlHint">支持任意公开 GitHub 仓库链接 · 例：<code>https://github.com/owner/repo</code></p>
-          </div>
-
-          <!-- 快捷示例 -->
-          <div class="quick-examples">
-            <span class="examples-label">试试这些热门项目：</span>
-            <button class="example-chip" data-url="https://github.com/xtekky/gpt4free">gpt4free</button>
-            <button class="example-chip" data-url="https://github.com/AUTOMATIC1111/stable-diffusion-webui">SD WebUI</button>
-            <button class="example-chip" data-url="https://github.com/lobehub/lobe-chat">Lobe Chat</button>
-            <button class="example-chip" data-url="https://github.com/Significant-Gravitas/AutoGPT">AutoGPT</button>
-          </div>
-
-          <!-- 项目推荐区 -->
-          <div class="recommend-section">
-            <div class="recommend-header">
-              <div class="recommend-tabs">
-                <button class="rec-tab active" data-cat="hot">🔥 热门</button>
-                <button class="rec-tab" data-cat="fun">🎮 有趣好玩</button>
-                <button class="rec-tab" data-cat="tool">🛠️ 实用工具</button>
-                <button class="rec-tab" data-cat="ai">🤖 AI 相关</button>
-              </div>
-              <button id="recShuffleBtn" class="btn btn-ghost btn-sm" title="换一批">🔀 换一批</button>
-            </div>
-            <div id="recommendList" class="recommend-grid"></div>
-          </div>
-
-          <!-- 近期项目（动态加载） -->
-          <div id="recentProjectsSection" class="recent-section hidden">
-            <h3 class="section-title">📌 已安装的项目</h3>
-            <div id="recentProjectsList" class="recent-list"></div>
-          </div>
-
-          <!-- 功能亮点 -->
-          <div class="feature-grid">
-            <div class="feature-card">
-              <div class="feature-icon">🤖</div>
-              <div class="feature-title">AI 智能分析</div>
-              <div class="feature-desc">自动识别项目类型，生成定制化部署方案</div>
-            </div>
-            <div class="feature-card">
-              <div class="feature-icon">⚡</div>
-              <div class="feature-title">一键自动安装</div>
-              <div class="feature-desc">克隆、依赖安装、启动配置全自动完成</div>
-            </div>
-            <div class="feature-card">
-              <div class="feature-icon">📖</div>
-              <div class="feature-title">傻瓜式教程</div>
-              <div class="feature-desc">看不懂没关系，手动教程每步都有说明</div>
-            </div>
-            <div class="feature-card">
-              <div class="feature-icon">🔄</div>
-              <div class="feature-title">随时更新回滚</div>
-              <div class="feature-desc">一键拉取最新代码，出问题随时回滚</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 步骤2：分析中 -->
-        <div id="step-analyzing" class="wizard-step hidden">
-          <div class="analyzing-wrap">
-            <div class="analyzing-visual">
-              <div class="pulse-ring"></div>
-              <div class="pulse-ring delay1"></div>
-              <div class="pulse-ring delay2"></div>
-              <span class="analyzing-emoji">🔍</span>
-            </div>
-            <h2 id="analyzingText">正在分析仓库...</h2>
-            <p id="analyzingSubtext" class="analyzing-sub">读取项目结构和配置文件</p>
-            <div class="analyzing-steps">
-              <div class="astep active" id="astep-fetch">📡 获取仓库信息</div>
-              <div class="astep" id="astep-detect">🔎 检测项目类型</div>
-              <div class="astep" id="astep-ai">🤖 AI 智能分析</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 步骤3：分析结果 -->
-        <div id="step-result" class="wizard-step hidden">
-          <div class="result-topbar">
-            <button id="backBtn" class="btn btn-ghost btn-sm">← 重新输入</button>
-            <div class="result-title-group">
-              <h2 id="repoTitle">项目名称</h2>
-              <span id="repoTypeBadge" class="type-badge"></span>
-            </div>
-          </div>
-
-          <div class="result-grid">
-            <!-- 左侧：信息 + 操作 -->
-            <div class="result-left">
-              <div class="info-card">
-                <div id="repoMeta"></div>
-              </div>
-
-              <!-- 风险扫描结果 -->
-              <div id="riskBanner" class="hidden" style="margin-bottom:.75rem"></div>
-
-              <div id="aiAnalysisCard" class="info-card ai-card hidden">
-                <div class="card-header">
-                  <h3>🤖 AI 分析</h3>
-                  <span class="ai-badge">智能</span>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo">
+                    <i class="fas fa-rocket"></i>
+                    <h1>GitHub Deploy Assistant</h1>
                 </div>
-                <div id="aiAnalysisContent" class="ai-content"></div>
-              </div>
-
-              <div class="info-card">
-                <h3 class="card-title">📋 检测到的项目类型</h3>
-                <div id="projectTypes"></div>
-              </div>
-
-              <div class="deploy-actions">
-                <button id="autoDeployBtn" class="btn deploy-btn-auto">
-                  <div class="deploy-btn-content">
-                    <span class="deploy-btn-icon">🤖</span>
-                    <div>
-                      <div class="deploy-btn-title">自动安装（推荐）</div>
-                      <div class="deploy-btn-sub">全自动完成，无需任何操作</div>
+                <span class="version">v2.0.0</span>
+            </div>
+            <div class="header-right">
+                <div class="system-status">
+                    <div class="status-item">
+                        <i class="fas fa-server"></i>
+                        <span class="status-text" id="system-status">运行正常</span>
                     </div>
-                  </div>
-                </button>
-                <button id="manualDeployBtn" class="btn deploy-btn-manual">
-                  <div class="deploy-btn-content">
-                    <span class="deploy-btn-icon">📖</span>
-                    <div>
-                      <div class="deploy-btn-title">查看手动教程</div>
-                      <div class="deploy-btn-sub">傻瓜式步骤，照着做就行</div>
+                    <div class="status-item">
+                        <i class="fas fa-project-diagram"></i>
+                        <span class="status-text" id="project-count">0 个项目</span>
                     </div>
-                  </div>
+                </div>
+                <button class="btn btn-primary btn-icon" id="settings-btn" title="设置">
+                    <i class="fas fa-cog"></i>
                 </button>
-              </div>
+                <button class="btn btn-dark btn-icon" id="refresh-btn" title="刷新">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
             </div>
+        </header>
 
-            <!-- 右侧：README -->
-            <div class="result-right">
-              <div class="readme-card">
-                <div class="readme-header" id="readmeToggle">
-                  <h3>📄 项目说明 (README)</h3>
-                  <span class="toggle-icon">▲</span>
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 左侧项目列表 -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h3><i class="fas fa-list"></i> 项目列表</h3>
+                    <button class="btn btn-success btn-sm" id="add-project-btn">
+                        <i class="fas fa-plus"></i> 添加项目
+                    </button>
                 </div>
-                <div id="readmeContent" class="readme-body markdown-body"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 步骤4：部署进行中 -->
-        <div id="step-deploying" class="wizard-step hidden">
-          <div class="deploying-wrap">
-            <div class="deploy-header">
-              <div class="deploy-header-left">
-                <div class="deploy-spinner"></div>
-                <div>
-                  <h2>正在自动安装...</h2>
-                  <p class="deploy-hint">请不要关闭此窗口</p>
+                <div class="project-list" id="project-list">
+                    <!-- 项目列表将通过JS动态生成 -->
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>暂无项目</p>
+                        <button class="btn btn-primary" id="quick-add-btn">
+                            <i class="fas fa-plus-circle"></i> 快速添加
+                        </button>
+                    </div>
                 </div>
-              </div>
-              <button id="cancelDeployBtn" class="btn btn-ghost btn-sm" style="color:var(--danger)">✕ 取消</button>
+                
+                <!-- 系统信息 -->
+                <div class="system-info">
+                    <div class="info-item">
+                        <i class="fas fa-microchip"></i>
+                        <span>CPU: <span id="cpu-usage">0%</span></span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-memory"></i>
+                        <span>内存: <span id="memory-usage">0%</span></span>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-hdd"></i>
+                        <span>磁盘: <span id="disk-usage">0%</span></span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 中间主操作区 -->
+            <main class="main-panel">
+                <div class="panel-header">
+                    <h2 id="selected-project-title">选择项目进行操作</h2>
+                    <div class="project-status" id="project-status-display">
+                        <span class="status-badge status-unknown">未选择</span>
+                    </div>
+                </div>
+
+                <!-- 项目卡片（选择项目后显示） -->
+                <div class="project-card hidden" id="project-card">
+                    <div class="card-header">
+                        <h3 id="project-name">项目名称</h3>
+                        <div class="project-meta">
+                            <span class="meta-item">
+                                <i class="fas fa-network-wired"></i>
+                                <span id="project-type">Node.js</span>
+                            </span>
+                            <span class="meta-item">
+                                <i class="fas fa-plug"></i>
+                                <span id="project-port">3000</span>
+                            </span>
+                            <span class="meta-item">
+                                <i class="fas fa-folder"></i>
+                                <span id="project-path">/path/to/project</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 核心操作按钮组 -->
+                    <div class="button-section">
+                        <h4><i class="fas fa-play-circle"></i> 核心操作</h4>
+                        <div class="button-group" id="core-operations">
+                            <button class="btn btn-success btn-lg" id="start-btn" disabled>
+                                <i class="fas fa-play"></i> 启动项目
+                            </button>
+                            <button class="btn btn-danger btn-lg" id="stop-btn" disabled>
+                                <i class="fas fa-stop"></i> 停止项目
+                            </button>
+                            <button class="btn btn-warning btn-lg" id="restart-btn" disabled>
+                                <i class="fas fa-redo"></i> 重启项目
+                            </button>
+                            <button class="btn btn-info btn-lg" id="logs-btn" disabled>
+                                <i class="fas fa-scroll"></i> 查看日志
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 配置管理按钮组 -->
+                    <div class="button-section">
+                        <h4><i class="fas fa-cogs"></i> 配置管理</h4>
+                        <div class="button-group" id="config-operations">
+                            <button class="btn btn-primary" id="edit-port-btn" disabled>
+                                <i class="fas fa-exchange-alt"></i> 修改端口
+                            </button>
+                            <button class="btn btn-primary" id="edit-env-btn" disabled>
+                                <i class="fas fa-sliders-h"></i> 环境变量
+                            </button>
+                            <button class="btn btn-primary" id="update-deps-btn" disabled>
+                                <i class="fas fa-sync"></i> 更新依赖
+                            </button>
+                            <button class="btn btn-primary" id="rebuild-btn" disabled>
+                                <i class="fas fa-hammer"></i> 重新构建
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 高级操作按钮组 -->
+                    <div class="button-section">
+                        <h4><i class="fas fa-tools"></i> 高级操作</h4>
+                        <div class="button-group" id="advanced-operations">
+                            <button class="btn btn-purple" id="backup-btn" disabled>
+                                <i class="fas fa-save"></i> 备份项目
+                            </button>
+                            <button class="btn btn-purple" id="rollback-btn" disabled>
+                                <i class="fas fa-history"></i> 回滚项目
+                            </button>
+                            <button class="btn btn-purple" id="diagnose-btn" disabled>
+                                <i class="fas fa-stethoscope"></i> 项目诊断
+                            </button>
+                            <button class="btn btn-danger" id="delete-btn" disabled>
+                                <i class="fas fa-trash"></i> 删除项目
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 折叠面板：更多选项 -->
+                    <div class="collapsible-section">
+                        <button class="collapsible-toggle" id="more-options-toggle">
+                            <i class="fas fa-chevron-down"></i> 更多选项
+                        </button>
+                        <div class="collapsible-content hidden" id="more-options">
+                            <div class="button-group">
+                                <button class="btn btn-dark" id="health-check-btn" disabled>
+                                    <i class="fas fa-heartbeat"></i> 健康检查
+                                </button>
+                                <button class="btn btn-dark" id="metrics-btn" disabled>
+                                    <i class="fas fa-chart-line"></i> 性能监控
+                                </button>
+                                <button class="btn btn-dark" id="export-config-btn" disabled>
+                                    <i class="fas fa-file-export"></i> 导出配置
+                                </button>
+                                <button class="btn btn-dark" id="import-config-btn" disabled>
+                                    <i class="fas fa-file-import"></i> 导入配置
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 部署向导（当未选择项目时显示） -->
+                <div class="deployment-wizard" id="deployment-wizard">
+                    <div class="wizard-header">
+                        <h2><i class="fas fa-rocket"></i> 快速部署</h2>
+                        <p>一键部署GitHub项目到本地环境</p>
+                    </div>
+                    
+                    <div class="deployment-buttons">
+                        <button class="btn btn-success btn-xl" id="one-click-deploy-btn">
+                            <i class="fas fa-bolt"></i> 一键智能部署
+                            <small>AI自动分析 + 自动配置</small>
+                        </button>
+                        
+                        <button class="btn btn-primary btn-xl" id="step-by-step-btn">
+                            <i class="fas fa-list-ol"></i> 分步向导部署
+                            <small>自定义每一步配置</small>
+                        </button>
+                        
+                        <button class="btn btn-purple btn-xl" id="remote-deploy-btn">
+                            <i class="fas fa-server"></i> 远程服务器部署
+                            <small>SSH到远程主机</small>
+                        </button>
+                    </div>
+                    
+                    <div class="deployment-options">
+                        <div class="input-group">
+                            <label for="repo-url">
+                                <i class="fab fa-github"></i> GitHub仓库URL
+                            </label>
+                            <input type="url" id="repo-url" placeholder="https://github.com/username/repository">
+                            <button class="btn btn-sm btn-primary" id="analyze-btn">
+                                <i class="fas fa-search"></i> 分析仓库
+                            </button>
+                        </div>
+                        
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label for="project-name-input">
+                                    <i class="fas fa-tag"></i> 项目名称
+                                </label>
+                                <input type="text" id="project-name-input" placeholder="my-project">
+                            </div>
+                            
+                            <div class="input-group">
+                                <label for="project-port-input">
+                                    <i class="fas fa-plug"></i> 端口号
+                                </label>
+                                <input type="number" id="project-port-input" placeholder="3000" min="1024" max="65535">
+                            </div>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <label>
+                                <input type="checkbox" id="private-repo-checkbox"> 私有仓库
+                            </label>
+                            <label>
+                                <input type="checkbox" id="auto-start-checkbox" checked> 部署后自动启动
+                            </label>
+                            <label>
+                                <input type="checkbox" id="create-backup-checkbox" checked> 创建备份
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- 右侧系统面板 -->
+            <aside class="sidebar-right">
+                <div class="panel-card">
+                    <h3><i class="fas fa-tachometer-alt"></i> 系统状态</h3>
+                    <div class="status-grid">
+                        <div class="status-card status-good">
+                            <i class="fas fa-check-circle"></i>
+                            <div class="status-content">
+                                <h4>API服务</h4>
+                                <p>运行正常</p>
+                            </div>
+                        </div>
+                        <div class="status-card status-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div class="status-content">
+                                <h4>磁盘空间</h4>
+                                <p>剩余 15GB</p>
+                            </div>
+                        </div>
+                        <div class="status-card status-good">
+                            <i class="fas fa-network-wired"></i>
+                            <div class="status-content">
+                                <h4>网络连接</h4>
+                                <p>正常</p>
+                            </div>
+                        </div>
+                        <div class="status-card status-good">
+                            <i class="fas fa-database"></i>
+                            <div class="status-content">
+                                <h4>数据库</h4>
+                                <p>已连接</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="panel-card">
+                    <h3><i class="fas fa-bolt"></i> 快捷操作</h3>
+                    <div class="quick-actions">
+                        <button class="btn btn-sm btn-success">
+                            <i class="fas fa-plus"></i> 新建项目
+                        </button>
+                        <button class="btn btn-sm btn-primary">
+                            <i class="fas fa-search"></i> 搜索项目
+                        </button>
+                        <button class="btn btn-sm btn-warning">
+                            <i class="fas fa-cog"></i> 系统设置
+                        </button>
+                        <button class="btn btn-sm btn-info">
+                            <i class="fas fa-question-circle"></i> 帮助文档
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="panel-card">
+                    <h3><i class="fas fa-history"></i> 最近活动</h3>
+                    <div class="activity-list">
+                        <div class="activity-item">
+                            <i class="fas fa-play activity-success"></i>
+                            <div class="activity-content">
+                                <p><strong>my-app</strong> 项目已启动</p>
+                                <span class="activity-time">2分钟前</span>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <i class="fas fa-download activity-info"></i>
+                            <div class="activity-content">
+                                <p><strong>react-app</strong> 依赖更新完成</p>
+                                <span class="activity-time">15分钟前</span>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <i class="fas fa-code-branch activity-primary"></i>
+                            <div class="activity-content">
+                                <p><strong>api-service</strong> 从GitHub克隆</p>
+                                <span class="activity-time">1小时前</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- 底部日志面板 -->
+        <div class="bottom-panel">
+            <div class="panel-header">
+                <h3><i class="fas fa-terminal"></i> 实时日志</h3>
+                <div class="panel-controls">
+                    <button class="btn btn-sm btn-dark" id="clear-logs-btn">
+                        <i class="fas fa-trash"></i> 清空
+                    </button>
+                    <button class="btn btn-sm btn-dark" id="pause-logs-btn">
+                        <i class="fas fa-pause"></i> 暂停
+                    </button>
+                    <button class="btn btn-sm btn-dark" id="export-logs-btn">
+                        <i class="fas fa-download"></i> 导出
+                    </button>
+                    <button class="btn btn-sm btn-dark" id="toggle-logs-btn">
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                </div>
             </div>
-
-            <div class="progress-wrap">
-              <div class="progress-bar">
-                <div id="progressFill" class="progress-fill"></div>
-              </div>
-              <span id="progressPct" class="progress-pct">0%</span>
+            <div class="log-container" id="log-container">
+                <div class="log-entry log-info">
+                    <span class="log-time">12:43:45</span>
+                    <span class="log-level">INFO</span>
+                    <span class="log-message">GitHub Deploy Assistant 已启动，等待连接...</span>
+                </div>
+                <div class="log-entry log-success">
+                    <span class="log-time">12:43:50</span>
+                    <span class="log-level">SUCCESS</span>
+                    <span class="log-message">API服务运行正常，端口: 3000</span>
+                </div>
+                <div class="log-entry log-warning">
+                    <span class="log-time">12:44:10</span>
+                    <span class="log-level">WARNING</span>
+                    <span class="log-message">检测到新版本可用 (v2.1.0)</span>
+                </div>
             </div>
-            <p id="progressText" class="progress-text">准备中...</p>
-
-            <div class="log-panel">
-              <div class="log-header">
-                <span>📋 实时日志</span>
-                <button class="log-copy-btn" onclick="copyLog()" title="复制日志">📋 复制</button>
-              </div>
-              <div id="deployLog" class="log-body"></div>
-            </div>
-          </div>
         </div>
-
-        <!-- 步骤5：手动教程 -->
-        <div id="step-manual" class="wizard-step hidden">
-          <div class="manual-wrap">
-            <div class="manual-topbar">
-              <button id="backFromManual" class="btn btn-ghost btn-sm">← 返回</button>
-              <h2>📖 手动安装教程</h2>
-            </div>
-            <div class="manual-body">
-              <div id="manualContent" class="markdown-body"></div>
-            </div>
-            <div class="manual-footer">
-              <p>按步骤操作遇到问题？让 AI 来帮你解决 👇</p>
-              <button id="openChatBtn" class="btn btn-primary">💬 问 AI 助手</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 步骤6：安装完成 -->
-        <div id="step-done" class="wizard-step hidden">
-          <div class="done-wrap">
-            <div class="done-anim">
-              <div class="done-circle">✅</div>
-            </div>
-            <h2>安装完成！🎉</h2>
-            <p id="doneMessage" class="done-msg"></p>
-            <div id="doneAccessUrl" class="done-url hidden">
-              <span>访问地址：</span>
-              <a id="doneUrlLink" href="#" target="_blank" class="done-url-link"></a>
-              <button onclick="copyDoneUrl()" class="btn btn-ghost btn-sm">📋 复制</button>
-            </div>
-            <div class="done-actions">
-              <button id="startProjectBtn" class="btn btn-primary">▶ 启动项目</button>
-              <button id="dockerizeBtn" class="btn btn-secondary" onclick="showDockerPanel()">🐳 容器化部署</button>
-              <button id="viewProjectBtn" class="btn btn-secondary">📂 查看管理</button>
-              <button id="deployAgainBtn" class="btn btn-ghost">🔄 再装一个</button>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- ========== 项目管理 ========== -->
-      <div id="projects" class="tab hidden">
-        <div class="tab-header">
-          <div class="tab-header-left">
-            <h2>📂 已安装项目</h2>
-            <span id="projectsTotalLabel" class="count-label"></span>
-          </div>
-          <div class="tab-header-right">
-            <div class="search-wrap">
-              <span class="search-icon">🔍</span>
-              <input id="projectSearch" type="text" placeholder="搜索项目..." class="input search-input">
-            </div>
-            <select id="projectFilter" class="input" style="width:auto">
-              <option value="">全部状态</option>
-              <option value="running">运行中</option>
-              <option value="deployed">已部署</option>
-              <option value="failed">失败</option>
-              <option value="stopped">已停止</option>
-            </select>
-            <div style="display:flex;gap:.35rem;align-items:center">
-              <input type="checkbox" id="batchModeToggle" onchange="toggleBatchMode(this.checked)" style="cursor:pointer">
-              <label for="batchModeToggle" style="font-size:.82rem;color:var(--text2);cursor:pointer">批量操作</label>
-            </div>
-          </div>
-        </div>
-        <!-- 批量操作工具栏 -->
-        <div id="batchToolbar" style="display:none;align-items:center;gap:.5rem;padding:.6rem .85rem;background:var(--primary-light);border-radius:var(--radius);margin-bottom:.75rem;flex-wrap:wrap">
-          <label style="font-size:.82rem;display:flex;align-items:center;gap:.3rem">
-            <input type="checkbox" id="selectAllProjects" onchange="toggleSelectAll(this.checked)"> 全选
-          </label>
-          <span id="batchCount" style="font-size:.82rem;color:var(--primary);font-weight:600">已选 0 项</span>
-          <button class="btn btn-primary btn-sm" onclick="batchAction('start')">▶ 批量启动</button>
-          <button class="btn btn-secondary btn-sm" onclick="batchAction('stop')">⏹ 批量停止</button>
-          <button class="btn btn-ghost btn-sm" onclick="batchAction('update')">🔔 批量检测更新</button>
-          <button class="btn btn-danger btn-sm" onclick="batchAction('uninstall')">🗑 批量卸载</button>
-        </div>
-        <div id="projectList" class="project-grid"></div>
-      </div>
-
-      <!-- ========== 扫描发现 ========== -->
-      <div id="scan" class="tab hidden">
-        <div class="tab-header">
-          <div class="tab-header-left">
-            <h2>🔍 扫描本地项目</h2>
-          </div>
-          <div class="tab-header-right">
-            <button id="scanBtn" class="btn btn-primary">🔍 开始扫描</button>
-          </div>
-        </div>
-        <p class="hint">自动发现电脑上已有的 GitHub 项目，导入后可统一管理。</p>
-        <div id="scanResults"></div>
-      </div>
-
-      <!-- ========== 系统状态 ========== -->
-      <div id="system" class="tab hidden">
-        <div class="tab-header">
-          <h2>🖥️ 系统状态</h2>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button id="selfCheckBtn" class="btn btn-primary btn-sm">🩺 全身自检</button>
-        <button class="btn btn-ghost" id="selfUpdateBtn" onclick="checkSelfUpdate()">🔍 检测 GADA 更新</button>
-            <button class="btn btn-ghost btn-sm" onclick="checkNetworkAndAI()">🌐 网络检测</button>
-            <button class="btn btn-ghost btn-sm" onclick="downloadConfig()">📤 导出配置</button>
-            <button class="btn btn-ghost btn-sm" onclick="showImportModal()">📥 导入配置</button>
-            <button id="refreshSystemBtn" class="btn btn-secondary btn-sm">🔄 刷新</button>
-          </div>
-        </div>
-        <div id="systemInfo" class="system-grid"></div>
-        <div class="section-gap"></div>
-        <h3 class="section-title">⚡ 进程管理</h3>
-        <div id="processList" class="process-list"></div>
-        <div class="section-gap"></div>
-        <div id="selfCheckPanel" style="display:none">
-          <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">
-            <h3 class="section-title" style="margin:0">🩺 自检报告</h3>
-            <span id="selfCheckSummary" style="font-size:.85rem;color:var(--text3)"></span>
-          </div>
-          <div id="selfCheckResult"></div>
-        </div>
-      </div>
-
-      <!-- ========== 搜索项目 ========== -->
-      <div id="search" class="tab hidden">
-        <div class="tab-header">
-          <h2>🌐 搜索 GitHub 项目</h2>
-        </div>
-
-        <!-- 搜索框 -->
-        <div class="search-box-wrap">
-          <div class="search-input-row">
-            <input id="searchQuery" type="text" class="input search-main-input"
-              placeholder="用自然语言描述你想找的项目，例如：帮我找一个好用的 Telegram 机器人框架" />
-            <button id="searchSubmitBtn" class="btn btn-primary">🔍 搜索</button>
-          </div>
-          <div class="search-examples">
-            <span style="font-size:.8rem;color:var(--text3)">试试：</span>
-            <span class="search-chip" data-q="本地运行大语言模型">本地运行大语言模型</span>
-            <span class="search-chip" data-q="自托管密码管理器">自托管密码管理器</span>
-            <span class="search-chip" data-q="Discord 机器人框架 Python">Discord 机器人 Python</span>
-            <span class="search-chip" data-q="轻量级笔记应用 自托管">自托管笔记应用</span>
-            <span class="search-chip" data-q="AI 图片生成 本地">AI 图片生成本地</span>
-          </div>
-        </div>
-
-        <!-- 搜索结果 -->
-        <div id="searchLoading" class="search-loading hidden">
-          <div class="spinner"></div><span>正在搜索并分析，请稍候...</span>
-        </div>
-        <div id="searchResult" class="search-result-wrap hidden">
-          <!-- AI 分析说明 -->
-          <div class="search-analysis-card">
-            <div class="search-analysis-header">
-              <span>📊 搜索分析</span>
-              <div style="display:flex;gap:.5rem">
-                <button id="exportCsvBtn" class="btn btn-secondary btn-sm">⬇️ 导出 CSV</button>
-                <button id="exportMdBtn" class="btn btn-secondary btn-sm">📄 导出 Markdown</button>
-                <button id="saveRecordBtn" class="btn btn-primary btn-sm">💾 保存记录</button>
-              </div>
-            </div>
-            <div id="searchSummary" class="search-summary"></div>
-            <div id="searchRecommendation" class="search-recommendation"></div>
-          </div>
-
-          <!-- 筛选栏 -->
-          <div class="search-filter-bar">
-            <select id="filterType" class="input input-sm"><option value="">全部类型</option></select>
-            <select id="filterLang" class="input input-sm"><option value="">全部语言</option></select>
-            <select id="filterPlatform" class="input input-sm"><option value="">全部平台</option></select>
-            <select id="filterActivity" class="input input-sm"><option value="">全部活跃度</option></select>
-            <select id="filterMaturity" class="input input-sm"><option value="">全部成熟度</option></select>
-            <button id="filterResetBtn" class="btn btn-ghost btn-sm">重置</button>
-          </div>
-
-          <!-- 结果表格 -->
-          <div class="search-table-wrap">
-            <table class="search-table" id="searchTable">
-              <thead>
-                <tr>
-                  <th>#</th><th>项目名</th><th>⭐</th><th>语言</th>
-                  <th>类型</th><th>平台</th><th>活跃度</th><th>场景</th><th>成熟度</th><th>描述</th><th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="searchTableBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- 搜索历史 -->
-        <div class="section-gap"></div>
-        <div class="search-history-header">
-          <h3 class="section-title">🕑 搜索历史</h3>
-          <button id="refreshHistoryBtn" class="btn btn-ghost btn-sm">刷新</button>
-        </div>
-        <div id="searchHistoryList" class="search-history-list"></div>
-      </div>
-
-      <!-- ========== 设备状态 ========== -->
-      <div id="device" class="tab hidden">
-        <div class="tab-header">
-          <h2>💻 设备状态</h2>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button id="deviceScanBtn" class="btn btn-primary btn-sm">🔍 开始扫描</button>
-            <button id="deviceSpeedBtn" class="btn btn-secondary btn-sm">⚡ 测速</button>
-            <button id="deviceScanWithSpeedBtn" class="btn btn-secondary btn-sm">🔍+⚡ 扫描+测速</button>
-          </div>
-        </div>
-
-        <div id="deviceLoading" class="search-loading hidden">
-          <div class="spinner"></div><span id="deviceLoadingText">正在扫描设备，请稍候...</span>
-        </div>
-
-        <div id="deviceResult" style="display:none">
-          <!-- 优化建议 -->
-          <div id="deviceTips" class="device-tips-wrap"></div>
-
-          <!-- 概览卡片 -->
-          <div id="deviceOverview" class="device-overview-grid"></div>
-
-          <!-- 详细信息折叠区 -->
-          <div id="deviceDetails" class="device-details"></div>
-        </div>
-
-        <div id="devicePlaceholder" class="device-placeholder">
-          <div style="font-size:3rem">💻</div>
-          <p>点击「开始扫描」获取设备完整状态报告</p>
-          <p style="font-size:.82rem;color:var(--text3)">扫描项目：CPU · 内存 · 磁盘 · 网络 · 进程 · 环境 · 安全</p>
-        </div>
-      </div>
-
-      <!-- ========== 软件管理 ========== -->
-      <div id="software" class="tab hidden">
-        <div class="tab-header">
-          <h2>📦 软件管理</h2>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button id="softwareScanBtn" class="btn btn-primary btn-sm">🔍 一键扫描</button>
-            <button id="selfUninstallBtn" class="btn btn-danger btn-sm">🗑 卸载 GADA 自身</button>
-          </div>
-        </div>
-
-        <div id="softwareLoading" class="search-loading hidden">
-          <div class="spinner"></div><span>正在扫描所有软件，请稍候（约10-30秒）...</span>
-        </div>
-
-        <div id="softwarePlaceholder" class="device-placeholder">
-          <div style="font-size:3rem">📦</div>
-          <p>点击「一键扫描」检测设备上所有已安装的软件与环境</p>
-          <p style="font-size:.82rem;color:var(--text3)">扫描范围：开发环境工具 · APT包 · Snap包 · npm全局包 · pip包 · GADA项目</p>
-        </div>
-
-        <div id="softwareResult" style="display:none">
-          <!-- 汇总 -->
-          <div id="softwareSummary" class="software-summary"></div>
-
-          <!-- 分类 Tab -->
-          <div class="software-tabs">
-            <button class="sw-tab active" data-sw="env">🛠️ 开发环境</button>
-            <button class="sw-tab" data-sw="apt">📦 APT 包</button>
-            <button class="sw-tab" data-sw="snap">🔵 Snap</button>
-            <button class="sw-tab" data-sw="npm">🟩 npm 全局</button>
-            <button class="sw-tab" data-sw="pip">🐍 pip 包</button>
-            <button class="sw-tab" data-sw="gada">🚀 GADA 项目</button>
-          </div>
-
-          <!-- 搜索框 -->
-          <div style="margin:.75rem 0;display:flex;gap:.5rem">
-            <input id="softwareSearch" type="text" class="input" placeholder="搜索名称..." style="max-width:300px">
-            <span id="softwareCount" style="align-self:center;color:var(--text3);font-size:.85rem"></span>
-          </div>
-
-          <!-- 列表 -->
-          <div id="softwareList"></div>
-        </div>
-      </div>
-
-      <!-- ========== 环境指南 ========== -->
-      <div id="envguide" class="tab hidden">
-        <div class="tab-header">
-          <h2>📚 环境指南</h2>
-          <p style="color:var(--text3);font-size:.85rem;margin:.25rem 0 0">市面上主流开发环境工具大全，含官网和小白向安装教程</p>
-        </div>
-
-        <!-- 搜索 + 分类过滤 -->
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
-          <input id="envSearch" type="text" class="input" placeholder="搜索工具名称..." style="max-width:260px">
-          <div id="envCategoryFilter" style="display:flex;gap:.35rem;flex-wrap:wrap"></div>
-        </div>
-
-        <div id="envLoading" class="search-loading hidden">
-          <div class="spinner"></div><span>加载中...</span>
-        </div>
-
-        <!-- 工具列表（按分类分组） -->
-        <div id="envList"></div>
-
-        <!-- 教程模态框 -->
-        <div id="envTutorialModal" class="modal-overlay hidden">
-          <div class="modal-box" style="max-width:680px;max-height:85vh;overflow-y:auto">
-            <div class="modal-header">
-              <h3 id="tutorialTitle"></h3>
-              <button class="btn btn-ghost" onclick="closeEnvTutorial()">✕</button>
-            </div>
-            <div id="tutorialContent"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Docker 容器化面板 -->
-      <div id="dockerModal" class="modal-overlay hidden">
-        <div class="modal-box" style="max-width:680px;max-height:85vh;overflow-y:auto">
-          <div class="modal-header">
-            <h3>🐳 Docker 容器化部署</h3>
-            <button class="btn btn-ghost" onclick="closeDockerModal()">✕</button>
-          </div>
-          <div id="dockerModalContent">
-            <!-- 状态区 -->
-            <div id="dockerStatusBar" style="margin-bottom:1rem"></div>
-            <!-- 操作按钮 -->
-            <div id="dockerActions" style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem"></div>
-            <!-- 文件预览 -->
-            <div id="dockerFilePreview"></div>
-            <!-- 日志输出 -->
-            <div id="dockerLog" class="log-box" style="height:180px;display:none"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- AI 故障自愈模态框 -->
-      <div id="healModal" class="modal-overlay hidden">
-        <div class="modal-box" style="max-width:620px;max-height:80vh;overflow-y:auto">
-          <div class="modal-header">
-            <h3 id="healModalTitle">🩺 AI 故障分析</h3>
-            <button class="btn btn-ghost" onclick="closeHealModal()">✕</button>
-          </div>
-          <div id="healModalContent"></div>
-        </div>
-      </div>
-
-      <!-- ========== 环境检测 ========== -->
-      <div id="envcheck" class="tab hidden">
-        <div class="tab-header">
-          <h2>🔧 环境检测</h2>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button id="envDetectBtn" class="btn btn-primary btn-sm" onclick="doEnvDetect()">🔍 一键检测</button>
-          </div>
-        </div>
-        <div id="envCheckLoading" class="search-loading hidden">
-          <div class="spinner"></div><span>正在检测运行环境...</span>
-        </div>
-        <div id="envCheckPlaceholder" class="device-placeholder">
-          <div style="font-size:3rem">🔧</div>
-          <p>点击「一键检测」扫描系统中所有开发工具安装状态</p>
-          <p style="font-size:.82rem;color:var(--text3)">检测项目：Node.js · Python · Git · Docker · Nginx · PM2 · 编译工具等</p>
-        </div>
-        <div id="envCheckResult" style="display:none">
-          <div id="envCheckSummary" style="margin-bottom:1rem"></div>
-          <div id="envCheckList"></div>
-        </div>
-      </div>
-
-      <!-- ========== 部署模板 ========== -->
-      <div id="templates" class="tab hidden">
-        <div class="tab-header">
-          <h2>📋 部署模板</h2>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" onclick="showExportTemplateModal()">📤 导出我的项目为模板</button>
-          </div>
-        </div>
-
-        <!-- 搜索 + 分类 -->
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
-          <input id="tplSearch" type="text" class="input" placeholder="搜索模板..." style="max-width:240px">
-          <div id="tplCategoryFilter" style="display:flex;gap:.35rem;flex-wrap:wrap"></div>
-        </div>
-
-        <div id="tplLoading" class="search-loading hidden">
-          <div class="spinner"></div><span>加载模板...</span>
-        </div>
-
-        <div id="tplList"></div>
-
-        <!-- 导出模板弹窗 -->
-        <div id="exportTplModal" class="modal-overlay hidden">
-          <div class="modal-box" style="max-width:480px">
-            <div class="modal-header">
-              <h3>📤 导出部署模板</h3>
-              <button class="btn btn-ghost" onclick="closeExportTplModal()">✕</button>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:.75rem">
-              <div>
-                <label style="font-size:.85rem;color:var(--text2)">选择已部署的项目</label>
-                <select id="exportTplProject" class="input" style="width:100%;margin-top:.3rem"></select>
-              </div>
-              <div>
-                <label style="font-size:.85rem;color:var(--text2)">模板名称</label>
-                <input id="exportTplName" type="text" class="input" placeholder="例：我的 ChatGPT 配置" style="width:100%;margin-top:.3rem">
-              </div>
-              <div>
-                <label style="font-size:.85rem;color:var(--text2)">分类</label>
-                <input id="exportTplCategory" type="text" class="input" placeholder="例：AI / 工具" value="我的模板" style="width:100%;margin-top:.3rem">
-              </div>
-              <div>
-                <label style="font-size:.85rem;color:var(--text2)">描述（可选）</label>
-                <input id="exportTplDesc" type="text" class="input" placeholder="简单描述一下这个配置" style="width:100%;margin-top:.3rem">
-              </div>
-              <button class="btn btn-primary" onclick="doExportTemplate()">📤 导出模板</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ========== 日志浏览 ========== -->
-      <div id="logs" class="tab hidden">
-        <div class="tab-header">
-          <h2>📄 日志浏览</h2>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            <button class="btn btn-ghost btn-sm" onclick="loadLogsList()">🔄 刷新</button>
-            <button class="btn btn-ghost btn-sm" onclick="showAuditLog()">📋 审计日志</button>
-          </div>
-        </div>
-        <div style="display:flex;gap:1rem;height:calc(100vh - 160px)">
-          <!-- 文件列表 -->
-          <div style="width:220px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--border);padding-right:.75rem">
-            <div style="font-size:.8rem;color:var(--text3);margin-bottom:.5rem">日志文件</div>
-            <div id="logsFileList"></div>
-          </div>
-          <!-- 内容区 -->
-          <div style="flex:1;display:flex;flex-direction:column;gap:.5rem;min-width:0">
-            <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-              <input id="logFilterInput" type="text" class="input" placeholder="过滤关键词..." style="max-width:220px;font-size:.83rem">
-              <button class="btn btn-ghost btn-sm" onclick="applyLogFilter()">🔍 过滤</button>
-              <button id="logTailBtn" class="btn btn-ghost btn-sm" onclick="toggleLogTail()">▶ 实时追踪</button>
-              <span id="logFileName" style="font-size:.78rem;color:var(--text3)"></span>
-            </div>
-            <div id="logContent" class="log-box" style="flex:1;overflow-y:auto;font-size:.75rem;line-height:1.6">请选择左侧日志文件</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ========== 资源监控 ========== -->
-      <div id="monitor" class="tab hidden">
-        <div class="tab-header">
-          <h2>📊 资源监控</h2>
-          <div style="display:flex;gap:.5rem">
-            <button class="btn btn-ghost btn-sm" onclick="startMonitorStream()">▶ 实时监控</button>
-            <button class="btn btn-ghost btn-sm" onclick="stopMonitorStream()">⏹ 停止</button>
-            <button class="btn btn-ghost btn-sm" onclick="applyNetworkOpt()">🚀 一键网络优化</button>
-          </div>
-        </div>
-        <div class="system-grid" id="monitorCards" style="margin-bottom:1rem">
-          <div class="sys-card"><div class="sys-card-title">CPU 使用率</div><div class="sys-card-value" id="monCpu">--</div><div class="sys-progress"><div class="sys-bar" id="monCpuBar" style="width:0"></div></div></div>
-          <div class="sys-card"><div class="sys-card-title">内存使用</div><div class="sys-card-value" id="monMem">--</div><div class="sys-progress"><div class="sys-bar" id="monMemBar" style="width:0"></div></div></div>
-          <div class="sys-card"><div class="sys-card-title">磁盘使用</div><div class="sys-card-value" id="monDisk">--</div><div class="sys-progress"><div class="sys-bar" id="monDiskBar" style="width:0"></div></div></div>
-          <div class="sys-card"><div class="sys-card-title">系统负载</div><div class="sys-card-value" id="monLoad">--</div></div>
-        </div>
-        <div id="monitorChart" style="height:200px;background:var(--bg2);border-radius:var(--radius);padding:.75rem;position:relative;overflow:hidden">
-          <canvas id="monitorCanvas" style="width:100%;height:100%"></canvas>
-          <div id="monitorChartLegend" style="position:absolute;top:.5rem;right:.75rem;font-size:.72rem;color:var(--text3)">CPU <span style="color:#6366f1">■</span> 内存 <span style="color:#22c55e">■</span></div>
-        </div>
-        <div style="margin-top:1rem">
-          <h4 style="margin-bottom:.5rem">🌐 网络镜像优化</h4>
-          <div id="networkOptStatus"></div>
-        </div>
-      </div>
-
-      <!-- ========== AI 设置 ========== -->
-      <div id="ai" class="tab hidden">
-        <!-- 一键粘贴区 -->
-        <div class="quick-paste-card">
-          <div class="qp-header">
-            <span class="qp-icon">⚡</span>
-            <div>
-              <div class="qp-title">一键粘贴 AI 配置</div>
-              <div              class="qp-sub">把中转站给你的文字直接粘进来，自动识别配置</div>
-            </div>
-          </div>
-          <textarea id="quickPasteInput" class="qp-textarea"
-            placeholder="粘贴任意格式的 AI 配置文字：
-· 纯 Key：sk-xxxxxxxx
-· 含地址：baseURL: https://xxx.com/v1  apiKey: sk-xxx
-· JSON：{&quot;apiKey&quot;:&quot;sk-xxx&quot;, &quot;baseURL&quot;:&quot;...&quot;}
-· 或直接粘贴中转站的完整说明文字"></textarea>
-          <div class="qp-footer">
-            <div id="quickParsePreview" class="qp-preview hidden"></div>
-            <button id="quickParseBtn" class="btn btn-primary">⚡ 识别并应用</button>
-            <button id="quickClearBtn" class="btn btn-ghost">清除</button>
-          </div>
-          <div id="quickApplyResult" class="qp-result hidden"></div>
-        </div>
-
-        <div class="section-gap"></div>
-        <div class="ai-tab-header">
-          <h3>已配置的 AI 提供商</h3>
-          <button id="addProviderBtn" class="btn btn-secondary btn-sm">+ 添加自定义</button>
-        </div>
-        <div id="providerList" class="provider-grid"></div>
-
-        <!-- 添加自定义提供商弹窗 -->
-        <div id="customProviderForm" class="modal hidden">
-          <div class="modal-box">
-            <h3>添加自定义 AI 提供商</h3>
-            <label>标识符 (英文，如 my-llm)
-              <input id="cpKey" type="text" placeholder="my-llm" class="input">
-            </label>
-            <label>显示名称
-              <input id="cpName" type="text" placeholder="我的大模型" class="input">
-            </label>
-            <label>API Base URL
-              <input id="cpUrl" type="text" placeholder="https://api.example.com/v1" class="input">
-            </label>
-            <label>API Key
-              <input id="cpKey2" type="password" placeholder="sk-xxx" class="input">
-            </label>
-            <label>默认模型名
-              <input id="cpModel" type="text" placeholder="gpt-4o" class="input">
-            </label>
-            <div class="modal-actions">
-              <button id="testProviderBtn" class="btn btn-secondary">🔗 测试连接</button>
-              <button id="saveProviderBtn" class="btn btn-primary">保存</button>
-              <button id="cancelProviderBtn" class="btn btn-ghost">取消</button>
-            </div>
-            <div id="testResult" class="test-result hidden"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ========== 分享记录（功能19）========== -->
-      <div id="share" class="tab hidden">
-        <div class="tab-header">
-          <div class="tab-header-left">
-            <h2>🔗 分享部署记录</h2>
-          </div>
-        </div>
-        <p class="hint">为部署成功的项目生成分享链接，朋友无需安装即可查看配置和复现步骤。</p>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;max-width:900px">
-
-        <!-- 创建分享 -->
-        <div class="card">
-          <h3 style="margin-bottom:.85rem">📤 生成分享链接</h3>
-          <label>选择项目
-            <select id="shareProjectSelect" class="input" style="margin-top:.35rem"></select>
-          </label>
-          <label style="margin-top:.75rem">有效期
-            <select id="shareExpireSelect" class="input" style="margin-top:.35rem">
-              <option value="24">24 小时</option>
-              <option value="72" selected>72 小时（3天）</option>
-              <option value="168">7 天</option>
-              <option value="720">30 天</option>
-              <option value="0">永久有效</option>
-            </select>
-          </label>
-          <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
-            <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem">
-              <input type="checkbox" id="shareIncludeConfig" checked> 包含项目配置
-            </label>
-            <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem">
-              <input type="checkbox" id="shareIncludeSteps" checked> 包含复现步骤
-            </label>
-          </div>
-          <button class="btn btn-primary" style="margin-top:1rem;width:100%" onclick="createShareLink()">🔗 生成分享链接</button>
-          <div id="shareResult" class="hidden" style="margin-top:1rem;background:var(--bg2);border-radius:var(--radius);padding:.85rem">
-            <div style="font-size:.82rem;color:var(--text3);margin-bottom:.4rem">分享链接（发给朋友直接打开）：</div>
-            <div style="display:flex;gap:.5rem;align-items:center">
-              <input id="shareLinkInput" type="text" class="input" readonly style="flex:1;font-size:.82rem">
-              <button class="btn btn-ghost btn-sm" onclick="copyShareLink()">📋 复制</button>
-            </div>
-            <div id="shareExpireNote" style="font-size:.78rem;color:var(--text3);margin-top:.35rem"></div>
-          </div>
-        </div>
-
-        <!-- 已有分享列表 -->
-        <div class="card">
-          <h3 style="margin-bottom:.75rem">📋 已创建的分享</h3>
-          <div style="margin-bottom:.75rem;display:flex;gap:.5rem">
-            <select id="shareListProjectSelect" class="input" style="width:auto">
-              <option value="">选择项目查看</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" onclick="loadShareList()">查看</button>
-          </div>
-          <div id="shareList"></div>
-        </div>
-
-        </div><!-- end grid -->
-      </div>
-
-      <!-- ========== 远程部署（功能26）========== -->
-      <div id="remote" class="tab hidden">
-        <div class="tab-header">
-          <div class="tab-header-left">
-            <h2>🌍 远程主机部署</h2>
-          </div>
-          <div class="tab-header-right">
-            <button class="btn btn-primary btn-sm" onclick="showAddHostModal()">+ 添加主机</button>
-          </div>
-        </div>
-        <p class="hint">通过 SSH 将项目部署到树莓派、云服务器（腾讯云/阿里云/VPS）等远程主机。</p>
-
-        <!-- 主机列表 -->
-        <h3 style="margin-bottom:.75rem">🖥️ 已配置主机</h3>
-        <div id="remoteHostList" class="project-grid"></div>
-
-        <!-- 远程部署操作 -->
-        <div class="section-gap"></div>
-        <h3 style="margin-bottom:.75rem">🚀 执行远程部署</h3>
-        <div class="card" style="max-width:480px">
-          <label>选择项目
-            <select id="remoteProjectSelect" class="input" style="margin-top:.35rem"></select>
-          </label>
-          <label style="margin-top:.75rem">目标主机
-            <select id="remoteHostSelect" class="input" style="margin-top:.35rem"></select>
-          </label>
-          <button class="btn btn-primary" style="margin-top:1rem;width:100%" onclick="startRemoteDeploy()">🚀 开始远程部署</button>
-        </div>
-
-        <!-- 添加主机弹窗 -->
-        <div id="addHostModal" class="modal hidden">
-          <div class="modal-box">
-            <div class="modal-header">
-              <h3>➕ 添加远程主机</h3>
-              <button class="icon-btn" onclick="hideAddHostModal()">✕</button>
-            </div>
-            <label>主机别名（如 树莓派4B）
-              <input id="hostName" type="text" class="input" placeholder="树莓派" style="margin-top:.35rem">
-            </label>
-            <label style="margin-top:.6rem">IP 地址 / 域名
-              <input id="hostAddr" type="text" class="input" placeholder="192.168.1.100" style="margin-top:.35rem">
-            </label>
-            <label style="margin-top:.6rem">SSH 端口（默认 22）
-              <input id="hostPort" type="number" class="input" value="22" style="margin-top:.35rem">
-            </label>
-            <label style="margin-top:.6rem">用户名
-              <input id="hostUser" type="text" class="input" placeholder="pi / root / ubuntu" style="margin-top:.35rem">
-            </label>
-            <label style="margin-top:.6rem">主机类型
-              <select id="hostType" class="input" style="margin-top:.35rem">
-                <option value="generic">通用 Linux</option>
-                <option value="raspberry-pi">🫐 树莓派</option>
-                <option value="cloud">☁️ 云服务器</option>
-                <option value="vps">🖥️ VPS</option>
-              </select>
-            </label>
-            <div style="margin-top:.75rem">
-              <div style="font-size:.82rem;color:var(--text3);margin-bottom:.4rem">认证方式（二选一）</div>
-              <label>SSH 密码
-                <input id="hostPassword" type="password" class="input" placeholder="留空则使用私钥" style="margin-top:.35rem">
-              </label>
-              <label style="margin-top:.6rem">SSH 私钥（PEM 格式）
-                <textarea id="hostPrivateKey" class="input" rows="4" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----\n..." style="margin-top:.35rem;resize:vertical;font-family:monospace;font-size:.8rem"></textarea>
-              </label>
-            </div>
-            <label style="margin-top:.6rem">远程工作目录（默认 ~/gada-workspace）
-              <input id="hostWorkDir" type="text" class="input" placeholder="~/gada-workspace" style="margin-top:.35rem">
-            </label>
-            <div style="display:flex;gap:.5rem;margin-top:1rem">
-              <button class="btn btn-primary" style="flex:1" onclick="submitAddHost()">✅ 添加</button>
-              <button class="btn btn-ghost" onclick="hideAddHostModal()">取消</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ========== 自动触发 Webhook（功能35）========== -->
-      <div id="webhookx" class="tab hidden">
-        <div class="tab-header">
-          <div class="tab-header-left">
-            <h2>⚡ 自动触发（Webhook）</h2>
-          </div>
-        </div>
-        <p class="hint">代码一推送到 GitHub / GitLab，服务器自动拉取最新代码并重启——无需手动操作。</p>
-
-        <!-- 配置向导 -->
-        <div class="card" style="max-width:560px;margin-bottom:1.5rem">
-          <h3 style="margin-bottom:.85rem">🔧 生成 Webhook 配置</h3>
-          <label>选择项目
-            <select id="webhookxProjectSelect" class="input" style="margin-top:.35rem"></select>
-          </label>
-          <label style="margin-top:.75rem">平台
-            <select id="webhookxProvider" class="input" style="margin-top:.35rem">
-              <option value="github">GitHub</option>
-              <option value="gitlab">GitLab</option>
-            </select>
-          </label>
-          <label style="margin-top:.75rem">监听分支（逗号分隔，* 表示全部）
-            <input id="webhookxBranches" type="text" class="input" value="main,master" style="margin-top:.35rem">
-          </label>
-          <label style="margin-top:.75rem">监听事件（逗号分隔，* 表示全部）
-            <input id="webhookxEvents" type="text" class="input" value="push,release" style="margin-top:.35rem">
-          </label>
-          <button class="btn btn-primary" style="margin-top:1rem;width:100%" onclick="generateWebhookx()">⚡ 生成配置</button>
-          <div id="webhookxResult" class="hidden" style="margin-top:1rem;background:var(--bg2);border-radius:var(--radius);padding:.85rem">
-            <div id="webhookxInstructions"></div>
-          </div>
-        </div>
-
-        <!-- 已配置列表 -->
-        <h3 style="margin-bottom:.75rem">📋 已配置的 Webhook</h3>
-        <div id="webhookxList"></div>
-        <button class="btn btn-secondary btn-sm" onclick="loadWebhookxList()">🔄 刷新列表</button>
-      </div>
-
-      <!-- ========== 私有仓库（功能40）========== -->
-      <div id="private" class="tab hidden">
-        <div class="tab-header">
-          <div class="tab-header-left">
-            <h2>🔒 私有仓库</h2>
-          </div>
-        </div>
-        <p class="hint">使用 Personal Access Token (PAT) 克隆 GitHub / GitLab 私有仓库。Token 本地加密存储，安全可靠。</p>
-
-        <!-- 添加 Token -->
-        <div class="card" style="max-width:520px;margin-bottom:1.5rem">
-          <h3 style="margin-bottom:.85rem">🔑 添加访问令牌</h3>
-          <label>令牌名称（方便记忆，如 "我的GitHub PAT"）
-            <input id="privTokenName" type="text" class="input" placeholder="我的 GitHub PAT" style="margin-top:.35rem">
-          </label>
-          <label style="margin-top:.75rem">平台
-            <select id="privTokenProvider" class="input" style="margin-top:.35rem">
-              <option value="github">GitHub</option>
-              <option value="gitlab">GitLab</option>
-            </select>
-          </label>
-          <label style="margin-top:.75rem">Token 值
-            <input id="privTokenValue" type="password" class="input" placeholder="ghp_xxxxxxxxxxxx" style="margin-top:.35rem">
-          </label>
-          <div style="font-size:.78rem;color:var(--text3);margin-top:.4rem">
-            GitHub PAT 获取：Settings → Developer settings → Personal access tokens → Generate new token（勾选 repo 权限）
-          </div>
-          <div style="display:flex;gap:.5rem;margin-top:1rem">
-            <button class="btn btn-primary" style="flex:1" onclick="savePrivToken()">💾 保存令牌</button>
-          </div>
-        </div>
-
-        <!-- 令牌列表 -->
-        <h3 style="margin-bottom:.75rem">🗝️ 已保存令牌</h3>
-        <div id="privTokenList" style="margin-bottom:1.5rem"></div>
-
-        <!-- 克隆私有仓库 -->
-        <div class="card" style="max-width:520px">
-          <h3 style="margin-bottom:.85rem">📦 克隆私有仓库</h3>
-          <label>仓库地址
-            <input id="privRepoUrl" type="text" class="input" placeholder="https://github.com/user/private-repo" style="margin-top:.35rem">
-          </label>
-          <label style="margin-top:.75rem">使用令牌
-            <select id="privCloneToken" class="input" style="margin-top:.35rem"></select>
-          </label>
-          <label style="margin-top:.75rem">本地目录名（可选）
-            <input id="privRepoName" type="text" class="input" placeholder="留空则自动从 URL 提取" style="margin-top:.35rem">
-          </label>
-          <button class="btn btn-primary" style="margin-top:1rem;width:100%" onclick="clonePrivateRepo()">⬇️ 克隆私有仓库</button>
-          <div id="privCloneResult" class="hidden" style="margin-top:1rem"></div>
-        </div>
-      </div>
-
-    </main>
-  </div>
-
-  <!-- ===== AI 对话弹窗 ===== -->
-  <div id="chatModal" class="modal hidden">
-    <div class="modal-box modal-lg">
-      <div class="modal-header">
-        <div>
-          <h3>💬 AI 助手</h3>
-          <div id="chatProjectName" class="chat-project-name"></div>
-        </div>
-        <div style="display:flex;gap:.5rem;align-items:center">
-          <button id="clearChatBtn" class="btn btn-ghost btn-sm" title="清除对话历史">🗑 清除</button>
-          <button id="closeChatBtn" class="icon-btn">✕</button>
-        </div>
-      </div>
-      <div id="chatMessages" class="chat-messages"></div>
-      <div class="chat-input-row">
-        <input id="chatInput" type="text" placeholder="描述你遇到的问题..." class="input">
-        <button id="sendChatBtn" class="btn btn-primary">发送</button>
-      </div>
     </div>
-  </div>
 
-  <!-- ===== 全局 Loading ===== -->
-  <div id="globalLoading" class="global-loading hidden">
-    <div class="loading-content">
-      <div class="spinner"></div>
-      <span id="loadingText">处理中...</span>
+    <!-- 模态框容器 -->
+    <div class="modal-overlay hidden" id="modal-overlay">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">模态框标题</h3>
+                <button class="btn btn-icon btn-sm" id="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- 模态框内容 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modal-cancel-btn">取消</button>
+                <button class="btn btn-primary" id="modal-confirm-btn">确认</button>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <!-- ===== Toast 通知 ===== -->
-  <div id="toastContainer" class="toast-container"></div>
-
-  <script src="js/app.js"></script>
-  <script src="js/features.js"></script>
-  <script src="js/update-ui.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/api.js"></script>
 </body>
 </html>

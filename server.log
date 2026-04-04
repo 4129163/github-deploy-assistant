@@ -1,0 +1,4 @@
+使用默认数据
+GitHub Deploy Assistant 服务器运行在 http://localhost:3000
+API地址: http://localhost:3000/api
+前端地址: http://localhost:3000

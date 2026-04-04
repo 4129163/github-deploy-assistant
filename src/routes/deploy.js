@@ -123,7 +123,7 @@ router.post('/auto/:projectId', async (req, res) => {
 });
 
 // 导入跨平台压缩工具
-const { createBackup, restoreBackup, listBackups, decompress } = require('../utils/archive');
+const { createBackup, restoreBackup, listBackups } = require('../utils/archive');
 
 /**
  * 部署前备份项目目录（跨平台）
@@ -346,11 +346,12 @@ router.post('/update/:projectId', async (req, res) => {
           const backupPath = path.join(backupDir, latestBackup);
           try {
             await fs.remove(project.local_path);
-            // 使用跨平台解压工具
-            const result = await decompress(backupPath, path.dirname(project.local_path));
-            if (!result.success) {
-              throw new Error(`解压失败: ${result.error}`);
-            }
+            const { spawn: sp } = require('child_process');
+            await new Promise((resolve, reject) => {
+              const tar = sp('tar', ['-xzf', backupPath, '-C', path.dirname(project.local_path)]);
+              tar.on('close', c => c === 0 ? resolve() : reject(new Error('tar exit ' + c)));
+              tar.on('error', reject);
+            });
             await ProjectDB.update(projectId, { status: 'rolled_back' });
             broadcast(`⏪ 已自动回滚到备份: ${latestBackup}`);
             if (global.broadcast) global.broadcast('auto_rollback', { projectId: String(projectId), backup: latestBackup });
