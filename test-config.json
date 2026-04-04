@@ -1,0 +1,14 @@
+{
+  "environment": "test",
+  "port": 3002,
+  "database": {
+    "path": "test-data/test.db",
+    "inMemory": true
+  },
+  "tempDir": "test-data/temp",
+  "projectsDir": "test-data/projects",
+  "logsDir": "test-data/logs",
+  "coverageDir": "test-data/coverage",
+  "enableMocking": true,
+  "testTimeout": 30000
+}
