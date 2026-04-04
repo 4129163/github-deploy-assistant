@@ -40,7 +40,29 @@ else
 fi
 
 # 安装依赖
+echo -e "${BLUE}📦 安装依赖...${NC}"
 npm install --production
+
+# 【安全-P0】依赖漏洞扫描 + 自动提醒
+# 在npm install后自动运行npm audit，若发现高危漏洞则提示用户并建议更新
+echo -e "${BLUE}🔒 进行依赖安全扫描...${NC}"
+if npm audit --audit-level=critical --production; then
+    echo -e "${GREEN}✅ 依赖安全检查通过：未发现严重漏洞${NC}"
+else
+    echo -e "${BLUE}⚠️  发现安全漏洞，正在生成报告...${NC}"
+    # 生成详细报告
+    npm audit --json > security-audit-report.json 2>/dev/null || true
+    echo -e "${BLUE}📋 安全报告已保存到 security-audit-report.json${NC}"
+    
+    # 显示修复建议
+    echo -e "${BLUE}🛠️  建议修复措施：${NC}"
+    echo -e "${BLUE}   1. 自动修复：npm audit fix --force${NC}"
+    echo -e "${BLUE}   2. 查看详细报告：npm audit --json | jq .${NC}"
+    echo -e "${BLUE}   3. 手动更新特定包：npm update <package-name>${NC}"
+    
+    # 注意：这里不阻塞部署，仅提供警告和建议
+    echo -e "${BLUE}⚠️  注意：发现安全漏洞，建议在部署后尽快修复${NC}"
+fi
 
 # 创建 .env
 if [ ! -f ".env" ]; then

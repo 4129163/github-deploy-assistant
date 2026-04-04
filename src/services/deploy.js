@@ -16,6 +16,13 @@ const {
   buildSafeArgs 
 } = require('../utils/security');
 
+// 导入漏洞扫描模块
+const { 
+  runNpmAudit, 
+  generateVulnerabilityReport,
+  sendSecurityAlert 
+} = require('./vulnerability-scanner');
+
 /**
  * 执行命令（带输出捕获）
  * 使用安全工具防止命令注入
@@ -205,6 +212,74 @@ async function autoDeploy(project, onProgress) {
         return { success: false, results, retry_hint: retryMsg };
       }
       progress('依赖安装完成', { step: 'installed' });
+      
+      // 【安全-P0】依赖漏洞扫描 + 自动提醒
+      // 在npm install后自动运行npm audit，若发现高危漏洞则提示用户并建议更新
+      progress('正在进行依赖安全扫描...', { step: 'security_scan' });
+      
+      try {
+        // 运行npm audit检查
+        const auditResult = await runNpmAudit(local_path, { 
+          level: 'critical',  // 只关注critical级别漏洞
+          production: true     // 只检查生产依赖
+        });
+        
+        results.push({ step: 'security_audit', ...auditResult });
+        
+        if (auditResult.success) {
+          if (auditResult.hasVulnerabilities) {
+            // 生成漏洞报告
+            const vulnerabilityReport = generateVulnerabilityReport(auditResult);
+            
+            // 显示漏洞摘要
+            const vulnSummary = `发现 ${auditResult.totalVulnerabilities} 个安全漏洞（严重: ${auditResult.severityCounts.critical}, 高危: ${auditResult.severityCounts.high})`;
+            
+            if (auditResult.hasCriticalVulnerabilities || auditResult.hasHighVulnerabilities) {
+              // 发现严重或高危漏洞，发送安全警报
+              progress(`⚠️ ${vulnSummary}`, { 
+                step: 'security_alert',
+                has_critical: auditResult.hasCriticalVulnerabilities,
+                has_high: auditResult.hasHighVulnerabilities,
+                total_vulnerabilities: auditResult.totalVulnerabilities,
+                severity_counts: auditResult.severityCounts,
+                report: vulnerabilityReport
+              });
+              
+              // 发送安全提醒
+              await sendSecurityAlert(auditResult, name, {
+                channel: 'deploy',
+                priority: auditResult.hasCriticalVulnerabilities ? 'high' : 'medium'
+              });
+              
+              // 提供修复建议但不阻塞部署
+              const fixAdvice = `建议修复: 1) 运行 'npm audit fix --force' 自动修复 2) 查看详细报告了解风险`;
+              progress(fixAdvice, { step: 'security_advice', fix_suggestion: fixAdvice });
+              
+            } else {
+              // 只有中低危漏洞，仅记录不警报
+              progress(`⚠️ ${vulnSummary} (中低危漏洞，建议后续修复)`, {
+                step: 'security_warning',
+                total_vulnerabilities: auditResult.totalVulnerabilities,
+                severity_counts: auditResult.severityCounts
+              });
+            }
+          } else {
+            progress('✅ 依赖安全检查通过：未发现安全漏洞', { step: 'security_ok' });
+          }
+        } else {
+          // npm audit执行失败
+          progress(`⚠️ 依赖安全检查失败: ${auditResult.error || '未知错误'}`, {
+            step: 'security_failed',
+            error: auditResult.error
+          });
+        }
+      } catch (securityError) {
+        logger.error('安全扫描过程中发生错误:', securityError);
+        progress('⚠️ 依赖安全检查异常，跳过安全检查', {
+          step: 'security_error',
+          error: securityError.message
+        });
+      }
     }
 
     if (types.includes('python')) {
