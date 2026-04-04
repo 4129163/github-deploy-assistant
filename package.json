@@ -20,7 +20,12 @@
     "security-check": "npm audit",
     "ci": "npm run lint && npm run test && npm run build",
     "ui": "node server.js",
-    "ui:dev": "nodemon server.js"
+    "ui:dev": "nodemon server.js",
+    "secure:init": "node scripts/migrate-secure.js",
+    "secure:test": "node test-secure-storage.js",
+    "secure:status": "node -e \"const storage = require('./src/utils/secure-storage'); console.log('安全存储状态:', storage.isInitialized() ? '已初始化' : '未初始化');\"",
+    "secure:backup": "node -e \"const storage = require('./src/utils/secure-storage'); (async () => { const backupFile = await storage.backup('./secure-backup.json', process.env.MASTER_PASSWORD); console.log('备份完成:', backupFile); })();\"",
+    "secure:health": "curl -s http://localhost:3000/api/health | jq . || curl -s http://localhost:3000/api/health"
   },
   "keywords": [
     "github",

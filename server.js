@@ -6,6 +6,9 @@ const path = require('path');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 
+// 安全存储路由
+const secureConfigRoutes = require('./src/routes/secure-config');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -486,6 +489,23 @@ app.put('/api/config', (req, res) => {
     };
     
     res.json(config);
+});
+
+// 安全存储API路由
+app.use('/api/secure', secureConfigRoutes);
+
+// 健康检查
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        secureStorage: {
+            available: true,
+            algorithm: 'AES-256-GCM',
+            api: '/api/secure'
+        }
+    });
 });
 
 // 辅助函数：添加活动记录
