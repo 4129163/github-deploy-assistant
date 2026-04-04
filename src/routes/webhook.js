@@ -69,8 +69,14 @@ router.get('/setup/:projectId', async (req, res) => {
           `1. 打开 GitHub 仓库 → Settings → Webhooks → Add webhook`,
           `2. Payload URL 填写: ${webhookUrl}`,
           `3. Content type 选择: application/json`,
-          `4. 触发事件选择: Just the push event`,
-          `5. 点击 Add webhook`,
+          `4. Secret 填写: ${token} (重要！用于签名验证)`,
+          `5. 触发事件选择: Just the push event`,
+          `6. 点击 Add webhook`,
+        ],
+        security_notes: [
+          '✅ 强烈建议在 GitHub Webhook 配置中填写 Secret 字段',
+          '✅ 填写 Secret 后，系统会自动验证请求签名，防止恶意请求',
+          '⚠️  如果不填写 Secret，Webhook 将无法验证请求来源，存在安全风险',
         ],
       },
     });
@@ -114,6 +120,21 @@ router.delete('/:projectId', async (req, res) => {
   }
 });
 
+// HMAC签名验证函数
+function verifyGitHubSignature(payload, signature, secret) {
+  if (!signature || !secret) return false;
+  
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(payload);
+  const expectedSignature = 'sha256=' + hmac.digest('hex');
+  
+  // 使用时间安全的比较函数
+  return crypto.timingSafeEqual(
+    Buffer.from(expectedSignature),
+    Buffer.from(signature)
+  );
+}
+
 // 接收 GitHub Push 事件
 router.post('/:token', express.json({ type: '*/*' }), async (req, res) => {
   const { token } = req.params;
@@ -122,6 +143,21 @@ router.post('/:token', express.json({ type: '*/*' }), async (req, res) => {
   if (!projectId) {
     logger.warn(`Webhook: unknown token ${token.slice(0,8)}...`);
     return res.status(404).json({ error: 'Unknown webhook token' });
+  }
+
+  // 验证 GitHub Webhook 签名
+  const githubSignature = req.headers['x-hub-signature-256'];
+  if (githubSignature) {
+    const rawBody = JSON.stringify(req.body);
+    if (!verifyGitHubSignature(rawBody, githubSignature, token)) {
+      logger.warn(`Webhook: HMAC signature verification failed for project ${projectId}`);
+      return res.status(401).json({ error: 'Invalid signature' });
+    }
+    logger.debug(`Webhook: HMAC signature verified for project ${projectId}`);
+  } else {
+    logger.warn(`Webhook: No HMAC signature provided for project ${projectId} - security risk!`);
+    // 可以选择是否允许无签名的请求，这里为了兼容性暂时允许
+    // return res.status(401).json({ error: 'Missing signature' });
   }
 
   // 快速响应 GitHub，避免超时

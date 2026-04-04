@@ -235,9 +235,22 @@ async function chat(messages, provider = null, model = null) {
     }
 
     // 通用 OpenAI 兼容接口（包含自定义提供商）
+    const requestBody = {
+      model: selectedModel,
+      messages,
+      temperature: 0.7
+    };
+    
+    // 为支持 JSON 模式的提供商添加 response_format 参数
+    // OpenAI GPT-4o 和 GPT-4 Turbo 支持 JSON 模式
+    if ((providerKey === 'openai' && (selectedModel.includes('gpt-4') || selectedModel.includes('gpt-3.5-turbo-1106'))) ||
+        (providerKey === 'deepseek' && selectedModel.includes('deepseek-chat'))) {
+      requestBody.response_format = { type: 'json_object' };
+    }
+    
     const resp = await axios.post(
       `${config.baseURL}/chat/completions`,
-      { model: selectedModel, messages, temperature: 0.7 },
+      requestBody,
       {
         headers: {
           'Authorization': `Bearer ${config.apiKey}`,
@@ -269,19 +282,53 @@ async function analyzeRepo(repoData, provider = null) {
       content: `请分析以下 GitHub 仓库信息，并给出详细的部署和硬件建议：\n\n${JSON.stringify(repoData, null, 2)}\n\n请严格按以下 JSON 格式返回，确保JSON语法完全正确，没有多余字符：\n{\n  "project_type": "准确的项目类型，如Go后端项目/Java SpringBoot项目/Rust命令行工具等",\n  "analysis": "项目功能和架构分析",\n  "requirements": { "cpu": 1, "memory_gb": 2, "disk_gb": 1 },\n  "dependencies": ["所需依赖和版本要求，如go 1.22+, jdk 17+"],\n  "stack": ["技术栈列表"],\n  "recommendation": "详细部署步骤和注意事项"\n}`
     }
   ];
-  // 增加重试机制，提升成功率
+  // 增加重试和JSON解析容错机制
   let retryCount = 0;
-  while (retryCount < 2) {
+  while (retryCount < 3) {
     try {
       const result = await chat(messages, provider);
-      // 尝试解析JSON确保返回格式正确
-      JSON.parse(result);
-      return result;
+      
+      // 尝试解析JSON，支持多种格式
+      let jsonResult;
+      try {
+        jsonResult = JSON.parse(result);
+      } catch (parseError) {
+        // 如果直接解析失败，尝试提取JSON部分
+        const jsonMatch = result.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            jsonResult = JSON.parse(jsonMatch[0]);
+          } catch (innerError) {
+            logger.warn(`AI返回格式异常，无法提取JSON: ${innerError.message}`);
+            throw new Error(`AI返回格式异常，无法解析JSON: ${innerError.message}`);
+          }
+        } else {
+          logger.warn(`AI返回内容中未找到JSON格式: ${result.substring(0, 200)}...`);
+          throw new Error('AI返回格式异常，未找到有效的JSON内容');
+        }
+      }
+      
+      // 验证必要的字段
+      if (!jsonResult.project_type || !jsonResult.analysis || !jsonResult.requirements) {
+        logger.warn(`AI返回JSON缺少必要字段: ${JSON.stringify(jsonResult)}`);
+        if (retryCount < 2) {
+          retryCount++;
+          logger.info(`AI分析返回格式不完整，正在重试第${retryCount}次...`);
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          continue;
+        }
+        throw new Error('AI返回的JSON缺少必要字段');
+      }
+      
+      return JSON.stringify(jsonResult, null, 2);
     } catch (err) {
       retryCount++;
-      if (retryCount === 2) throw err;
+      if (retryCount === 3) {
+        logger.error(`AI分析失败，已重试${retryCount-1}次:`, err.message);
+        throw new Error(`AI分析失败: ${err.message}`);
+      }
       logger.info(`AI分析失败，正在重试第${retryCount}次...`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // 指数退避
     }
   }
 }

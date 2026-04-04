@@ -122,30 +122,19 @@ router.post('/auto/:projectId', async (req, res) => {
   }
 });
 
+// 导入跨平台压缩工具
+const { createBackup, restoreBackup, listBackups, decompress } = require('../utils/archive');
+
 /**
- * 部署前备份项目目录
+ * 部署前备份项目目录（跨平台）
  */
 async function backupProject(project) {
   try {
     if (!project.local_path || !await fs.pathExists(project.local_path)) return;
-    const backupDir = path.join(WORK_DIR, '.backups');
-    await fs.ensureDir(backupDir);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupName = `${project.name}-${timestamp}.tar.gz`;
-    const backupPath = path.join(backupDir, backupName);
-    const { spawn } = require('child_process');
-    await new Promise((resolve, reject) => {
-      // 用 spawn 数组参数，避免特殊字符注入
-      const tar = spawn('tar', [
-        '-czf', backupPath,
-        '-C', path.dirname(project.local_path),
-        path.basename(project.local_path)
-      ]);
-      tar.on('close', (code) => code === 0 ? resolve() : reject(new Error(`tar exit ${code}`)));
-      tar.on('error', reject);
-    });
-    logger.info(`Backup created: ${backupName}`);
-    return backupPath;
+    
+    const result = await createBackup(project.local_path, project.name);
+    logger.info(`Backup created: ${path.basename(result.path)} (${result.method}, ${Math.round(result.size/1024/1024*100)/100} MB)`);
+    return result.path;
   } catch (err) {
     logger.warn(`Backup failed (non-fatal): ${err.message}`);
   }
@@ -157,18 +146,7 @@ async function backupProject(project) {
  */
 router.get('/backups/:projectName', async (req, res) => {
   try {
-    const backupDir = path.join(WORK_DIR, '.backups');
-    await fs.ensureDir(backupDir);
-    const files = await fs.readdir(backupDir);
-    const backups = files
-      .filter(f => f.startsWith(req.params.projectName + '-') && f.endsWith('.tar.gz'))
-      .sort()
-      .reverse()
-      .map(f => ({
-        name: f,
-        path: path.join(backupDir, f),
-        time: f.replace(req.params.projectName + '-', '').replace('.tar.gz', '')
-      }));
+    const backups = await listBackups(path.join(WORK_DIR, '.backups'), req.params.projectName);
     res.json({ success: true, data: backups });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -192,17 +170,12 @@ router.post('/rollback/:projectId', async (req, res) => {
       return res.status(404).json({ error: '备份文件不存在' });
     }
 
-    // 删除当前目录，解压备份（用 spawn 数组参数，避免特殊字符注入）
+    // 删除当前目录，使用跨平台方法解压备份
     await fs.remove(project.local_path);
-    const { spawn } = require('child_process');
-    await new Promise((resolve, reject) => {
-      const tar = spawn('tar', ['-xzf', backupPath, '-C', path.dirname(project.local_path)]);
-      tar.on('close', (code) => code === 0 ? resolve() : reject(new Error(`tar exit ${code}`)));
-      tar.on('error', reject);
-    });
+    await restoreBackup(backupPath, path.dirname(project.local_path));
 
     await ProjectDB.update(projectId, { status: 'rolled_back' });
-    if (global.broadcastLog) global.broadcastLog(projectId, `✅ 已回滚到备份: ${backupName}`);
+    if (global.broadcastLog) global.broadcastLog(projectId, `✅ 已回滚到备份: ${backupName} (跨平台解压)`);
     res.json({ success: true, message: `已回滚到: ${backupName}` });
   } catch (error) {
     logger.error('Rollback error:', error);
@@ -373,12 +346,11 @@ router.post('/update/:projectId', async (req, res) => {
           const backupPath = path.join(backupDir, latestBackup);
           try {
             await fs.remove(project.local_path);
-            const { spawn: sp } = require('child_process');
-            await new Promise((resolve, reject) => {
-              const tar = sp('tar', ['-xzf', backupPath, '-C', path.dirname(project.local_path)]);
-              tar.on('close', c => c === 0 ? resolve() : reject(new Error('tar exit ' + c)));
-              tar.on('error', reject);
-            });
+            // 使用跨平台解压工具
+            const result = await decompress(backupPath, path.dirname(project.local_path));
+            if (!result.success) {
+              throw new Error(`解压失败: ${result.error}`);
+            }
             await ProjectDB.update(projectId, { status: 'rolled_back' });
             broadcast(`⏪ 已自动回滚到备份: ${latestBackup}`);
             if (global.broadcast) global.broadcast('auto_rollback', { projectId: String(projectId), backup: latestBackup });

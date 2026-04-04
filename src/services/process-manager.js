@@ -180,11 +180,88 @@ async function stopProject(projectId) {
 /**
  * 重启项目（广播新端口）
  */
-async function restartProject(project, onLog) {
-  try { await stopProject(project.id); } catch (_) {}
-  await new Promise(r => setTimeout(r, 800));
+async function restartProject(project, onLog, options = {}) {
+  const { PROCESS_RESTART_DELAY, PROCESS_RESTART_MAX_WAIT } = require('../config');
+  const { forceRestart = false, delayMs = PROCESS_RESTART_DELAY, maxWaitForStop = PROCESS_RESTART_MAX_WAIT } = options;
+  const log = (msg) => {
+    logger.info(`[${project.name}] ${msg}`);
+    if (onLog) onLog(msg);
+    if (global.broadcastLog) global.broadcastLog(String(project.id), msg);
+  };
+
+  log(`🔄 开始重启进程...`);
+  
+  // 获取当前进程状态
+  const proc = runningProcesses[String(project.id)];
+  const wasRunning = proc?.status === 'running';
+  
+  if (!wasRunning && !forceRestart) {
+    log(`⚠️  进程未运行，直接启动新进程`);
+    return await startProject(project, onLog);
+  }
+  
+  // 停止当前进程
+  if (wasRunning) {
+    log(`⏹️  停止当前进程 (PID: ${proc.pid})`);
+    try {
+      await stopProject(project.id);
+      log(`✅ 进程已停止`);
+    } catch (err) {
+      log(`⚠️  停止进程时出错: ${err.message}`);
+      if (!forceRestart) throw err;
+    }
+  }
+  
+  // 等待进程完全停止（检查端口释放）
+  let portReleased = false;
+  const startTime = Date.now();
+  
+  if (wasRunning && proc.port) {
+    log(`⏳ 等待端口 ${proc.port} 释放...`);
+    const net = require('net');
+    while (Date.now() - startTime < maxWaitForStop) {
+      const socket = new net.Socket();
+      const portCheck = new Promise((resolve) => {
+        socket.setTimeout(100);
+        socket.on('connect', () => {
+          socket.destroy();
+          resolve(false);
+        });
+        socket.on('timeout', () => {
+          socket.destroy();
+          resolve(true);
+        });
+        socket.on('error', () => {
+          socket.destroy();
+          resolve(true);
+        });
+      });
+      
+      portReleased = await portCheck;
+      if (portReleased) {
+        log(`✅ 端口 ${proc.port} 已释放`);
+        break;
+      }
+      
+      await new Promise(r => setTimeout(r, 100));
+    }
+    
+    if (!portReleased) {
+      log(`⚠️  端口 ${proc.port} 未在 ${maxWaitForStop}ms 内释放，强制继续重启`);
+    }
+  }
+  
+  // 等待配置的延迟时间
+  if (delayMs > 0) {
+    log(`⏳ 等待 ${delayMs}ms 后启动新进程...`);
+    await new Promise(r => setTimeout(r, delayMs));
+  }
+  
+  // 启动新进程
+  log(`🚀 启动新进程...`);
   const result = await startProject(project, onLog);
-  // 广播已在 startProject 内处理
+  log(`✅ 重启完成，新进程 PID: ${result.pid}, 端口: ${result.port}`);
+  
   return result;
 }
 

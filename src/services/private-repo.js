@@ -12,9 +12,25 @@ const simpleGit = require('simple-git');
 const fs = require('fs-extra');
 const { WORK_DIR } = require('../config');
 
-// 加密密钥：从环境变量读取，不存在则用机器唯一ID派生
+// 加密密钥：从环境变量读取，检查安全性
 function getEncryptionKey() {
-  const raw = process.env.GADA_SECRET_KEY || 'gada-default-secret-key-change-me';
+  const raw = process.env.GADA_SECRET_KEY;
+  
+  if (!raw || raw === 'change-me-to-a-random-secret' || raw === 'gada-default-secret-key-change-me') {
+    const { logger } = require('../utils/logger');
+    const defaultWeakKey = 'gada-default-secret-key-change-me';
+    
+    // 只在第一次使用时警告
+    if (!getEncryptionKey._warned) {
+      logger.warn('⚠️  GADA_SECRET_KEY 未设置或使用默认值，私有仓库 Token 加密安全性较弱！');
+      logger.warn('⚠️  请在 .env 文件中设置一个强密钥（32字节随机字符串）');
+      logger.warn('⚠️  生成命令: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+      getEncryptionKey._warned = true;
+    }
+    
+    return crypto.createHash('sha256').update(defaultWeakKey).digest();
+  }
+  
   return crypto.createHash('sha256').update(raw).digest(); // 32 bytes
 }
 

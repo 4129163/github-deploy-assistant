@@ -346,27 +346,38 @@ async function analyzeRepository(url) {
   
   logger.info(`Analyzing repository: ${parsed.fullName}`);
   
-  // 获取基本信息
-  const repoInfo = await getRepoInfo(parsed.owner, parsed.repo);
-  
-  // 获取根目录文件
-  const rootFiles = await getRepoContents(parsed.owner, parsed.repo);
+  // 并行获取基本信息和根目录文件
+  const [repoInfo, rootFiles] = await Promise.all([
+    getRepoInfo(parsed.owner, parsed.repo),
+    getRepoContents(parsed.owner, parsed.repo)
+  ]);
   
   // 检测项目类型
   const projectTypes = await detectProjectType(parsed.owner, parsed.repo, rootFiles);
   
-  // 解析配置文件
-  const packageJson = projectTypes.includes('nodejs') 
-    ? await parsePackageJson(parsed.owner, parsed.repo) 
-    : null;
+  // 并行解析配置文件
+  const configPromises = [];
   
-  const requirements = projectTypes.includes('python')
-    ? await parseRequirementsTxt(parsed.owner, parsed.repo)
-    : null;
+  if (projectTypes.includes('nodejs')) {
+    configPromises.push(parsePackageJson(parsed.owner, parsed.repo));
+  } else {
+    configPromises.push(Promise.resolve(null));
+  }
   
-  const readme = await parseReadme(parsed.owner, parsed.repo);
-  const dockerfile = await parseDockerfile(parsed.owner, parsed.repo);
-  const envExample = await parseEnvExample(parsed.owner, parsed.repo);
+  if (projectTypes.includes('python')) {
+    configPromises.push(parseRequirementsTxt(parsed.owner, parsed.repo));
+  } else {
+    configPromises.push(Promise.resolve(null));
+  }
+  
+  // 并行获取其他文件
+  const [readme, dockerfile, envExample] = await Promise.all([
+    parseReadme(parsed.owner, parsed.repo),
+    parseDockerfile(parsed.owner, parsed.repo),
+    parseEnvExample(parsed.owner, parsed.repo)
+  ]);
+  
+  const [packageJson, requirements] = await Promise.all(configPromises);
   
   // 收集所有配置信息
   const analysis = {
