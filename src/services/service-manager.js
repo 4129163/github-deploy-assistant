@@ -1,3 +1,57 @@
+// PowerShell脚本生成函数
+function generateInstallScript(options) {
+  return [
+    `$serviceName = "${options.serviceName}"`,
+    `$displayName = "${options.displayName}"`,
+    `$description = "${options.description}"`,
+    `$nodePath = "${options.nodePath.replace(/\\\\/g, '\\\\\\\\')}"`,
+    `$scriptPath = "${options.scriptPath.replace(/\\\\/g, '\\\\\\\\')}"`,
+    '',
+    '# 检查服务是否已存在',
+    '$existingService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue',
+    'if ($existingService) {',
+    '  Write-Host "⚠️ 服务已存在，停止并移除..."',
+    '  Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue',
+    '  Start-Sleep -Seconds 2',
+    '  Remove-Service -Name $serviceName -ErrorAction SilentlyContinue',
+    '}',
+    '',
+    '# 创建新服务',
+    'New-Service \\',
+    '  -Name $serviceName \\',
+    '  -BinaryPathName "`"$nodePath`" `"$scriptPath`"" \\',
+    '  -DisplayName $displayName \\',
+    '  -Description $description \\',
+    '  -StartupType Automatic \\',
+    '  -ErrorAction Stop',
+    '',
+    '# 配置服务恢复选项',
+    'sc.exe failure $serviceName reset= 86400 actions= restart/5000/restart/10000/restart/30000',
+    '',
+    '# 启动服务',
+    'Start-Service -Name $serviceName',
+    '',
+    'Write-Host "✅ Windows服务安装完成: $serviceName"'
+  ].join('\\n');
+}
+function generateUninstallScript(options) {
+  return [
+    `$serviceName = "${options.serviceName}"`,
+    '',
+    'try {',
+    '  # 停止服务',
+    '  Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue',
+    '  Start-Sleep -Seconds 2',
+    '',
+    '  # 移除服务',
+    '  Remove-Service -Name $serviceName -ErrorAction SilentlyContinue',
+    '',
+    '  Write-Host "✅ 服务卸载完成: $serviceName"',
+    '} catch {',
+    '  Write-Host "⚠️ 服务可能不存在或已移除"',
+    '}'
+  ].join('\\n');
+}
 /**
  * GADA 系统服务管理器
  * 支持多平台：Linux (systemd), macOS (launchd), Windows Service
@@ -399,39 +453,7 @@ class WindowsService extends BaseService {
   async install() {
     await this.validateAdmin();
     
-    const powershellScript = `
-      \$serviceName = "${this.options.serviceName}"
-      \$displayName = "${this.options.displayName}"
-      \$description = "${this.options.description}"
-      \$nodePath = "${this.options.nodePath.replace(/\\/g, '\\\\')}"
-      \$scriptPath = "${this.options.scriptPath.replace(/\\/g, '\\\\')}"
-      
-      # 检查服务是否已存在
-      \$existingService = Get-Service -Name \$serviceName -ErrorAction SilentlyContinue
-      if (\$existingService) {
-        Write-Host "⚠️ 服务已存在，停止并移除..."
-        Stop-Service -Name \$serviceName -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
-        Remove-Service -Name \$serviceName -ErrorAction SilentlyContinue
-      }
-      
-      # 创建新服务
-      New-Service `
-        -Name \$serviceName `
-        -BinaryPathName "\`"\$nodePath\`" \`"\$scriptPath\`"" `
-        -DisplayName \$displayName `
-        -Description \$description `
-        -StartupType Automatic `
-        -ErrorAction Stop
-      
-      # 配置服务恢复选项
-      sc.exe failure \$serviceName reset= 86400 actions= restart/5000/restart/10000/restart/30000
-      
-      # 启动服务
-      Start-Service -Name \$serviceName
-      
-      Write-Host "✅ Windows服务安装完成: \$serviceName"
-    `;
+        const powershellScript = generateInstallScript(this.options);
     
     const scriptFile = path.join(os.tmpdir(), `gada-install-${Date.now()}.ps1`);
     fs.writeFileSync(scriptFile, powershellScript);
@@ -467,28 +489,13 @@ class WindowsService extends BaseService {
   async uninstall() {
     await this.validateAdmin();
     
-    const powershellScript = `
-      \$serviceName = "${this.options.serviceName}"
-      
-      try {
-        # 停止服务
-        Stop-Service -Name \$serviceName -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
-        
-        # 移除服务
-        Remove-Service -Name \$serviceName -ErrorAction SilentlyContinue
-        
-        Write-Host "✅ 服务卸载完成: \$serviceName"
-      } catch {
-        Write-Host "⚠️ 服务可能不存在或已移除"
-      }
-    `;
+        const powershellScript = generateUninstallScript(this.options);
     
     const scriptFile = path.join(os.tmpdir(), `gada-uninstall-${Date.now()}.ps1`);
     fs.writeFileSync(scriptFile, powershellScript);
     
     try {
-      await this.execCommand(`powersctl -ExecutionPolicy Bypass -File "${scriptFile}"`);
+      await this.execCommand(`powershell -ExecutionPolicy Bypass -File "${scriptFile}"`);
       
       // 清理临时文件
       fs.unlinkSync(scriptFile);
