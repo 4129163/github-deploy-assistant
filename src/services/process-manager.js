@@ -16,8 +16,9 @@ const path = require('path');
 const fs = require('fs-extra');
 const { logger } = require('../utils/logger');
 const { findAvailablePort } = require('../utils/port');
+const { spawnWithLimits, parseLimitsFromProject } = require('../utils/resource-limiter');
 
-// 内存中的进程表：projectId -> { pid, process, port, status, startedAt }
+// 内存中的进程表：projectId -> { pid, process, port, status, startedAt, resourceLimits }
 const runningProcesses = {};
 
 /**
@@ -63,6 +64,9 @@ async function startProject(project, onLog) {
 
   log(`分配端口: ${port}`);
 
+  // 解析项目的资源限制配置
+  const resourceLimits = parseLimitsFromProject(project);
+  
   let child;
   const env = { ...process.env, PORT: String(port), NODE_ENV: 'production' };
 
@@ -79,7 +83,10 @@ async function startProject(project, onLog) {
       }
     } catch (_) {}
     log(`启动命令: ${startCmd} ${startArgs.join(' ')}`);
-    child = spawn(startCmd, startArgs, { cwd: local_path, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    if (resourceLimits.hasLimits()) {
+      log(`资源限制: ${resourceLimits.toString()}`);
+    }
+    child = spawnWithLimits(startCmd, startArgs, { cwd: local_path, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] }, resourceLimits);
     child.unref(); // 允许父进程退出而不等子进程
 
   } else if (types.includes('python')) {
@@ -93,7 +100,10 @@ async function startProject(project, onLog) {
       if (await fs.pathExists(path.join(local_path, f))) { entry = f; break; }
     }
     log(`启动命令: ${pythonCmd} ${entry}`);
-    child = spawn(pythonCmd, [entry], { cwd: local_path, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    if (resourceLimits.hasLimits()) {
+      log(`资源限制: ${resourceLimits.toString()}`);
+    }
+    child = spawnWithLimits(pythonCmd, [entry], { cwd: local_path, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] }, resourceLimits);
     child.unref();
 
   } else if (types.includes('docker')) {
@@ -101,6 +111,9 @@ async function startProject(project, onLog) {
     const hasCompose = await fs.pathExists(path.join(local_path, 'docker-compose.yml'))
       || await fs.pathExists(path.join(local_path, 'docker-compose.yaml'));
     if (!hasCompose) throw new Error('未找到 docker-compose.yml');
+    if (resourceLimits.hasLimits()) {
+      log(`注意：Docker项目需在docker-compose.yml中配置资源限制，系统限制可能不生效`);
+    }
     child = spawn('docker', ['compose', 'up'], { cwd: local_path, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     child.unref();
 
@@ -113,7 +126,8 @@ async function startProject(project, onLog) {
     process: child,
     port,
     status: 'running',
-    startedAt: new Date().toISOString()
+    startedAt: new Date().toISOString(),
+    resourceLimits: resourceLimits
   };
 
   child.stdout?.on('data', (d) => log(d.toString().trim()));
@@ -275,7 +289,12 @@ function getProcessStatus(projectId) {
     status: proc.status,
     pid: proc.pid,
     port: proc.port,
-    startedAt: proc.startedAt
+    startedAt: proc.startedAt,
+    resourceLimits: proc.resourceLimits ? {
+      cpuLimit: proc.resourceLimits.cpuLimit,
+      memoryLimitMB: proc.resourceLimits.memoryLimitMB,
+      hasLimits: proc.resourceLimits.hasLimits()
+    } : null
   };
 }
 
@@ -288,7 +307,12 @@ function getAllProcesses() {
     pid: proc.pid,
     port: proc.port,
     status: proc.status,
-    startedAt: proc.startedAt
+    startedAt: proc.startedAt,
+    resourceLimits: proc.resourceLimits ? {
+      cpuLimit: proc.resourceLimits.cpuLimit,
+      memoryLimitMB: proc.resourceLimits.memoryLimitMB,
+      hasLimits: proc.resourceLimits.hasLimits()
+    } : null
   }));
 }
 

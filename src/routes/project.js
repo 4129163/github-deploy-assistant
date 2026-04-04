@@ -69,6 +69,90 @@ router.put('/:id', async (req, res) => {
 });
 
 /**
+ * 设置项目资源限制
+ * POST /api/project/:id/resource-limits
+ * body: { cpuLimit: number, memoryLimitMB: number }
+ */
+router.post('/:id/resource-limits', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cpuLimit, memoryLimitMB } = req.body;
+    
+    // 验证资源限制
+    const errors = [];
+    
+    if (cpuLimit !== undefined && cpuLimit !== null) {
+      if (typeof cpuLimit !== 'number' || cpuLimit <= 0) {
+        errors.push('CPU限制必须为正数');
+      }
+      const os = require('os');
+      const cpuCount = os.cpus().length;
+      if (cpuLimit > cpuCount) {
+        errors.push(`CPU限制(${cpuLimit})超过系统核心数(${cpuCount})`);
+      }
+    }
+    
+    if (memoryLimitMB !== undefined && memoryLimitMB !== null) {
+      if (!Number.isInteger(memoryLimitMB) || memoryLimitMB <= 0) {
+        errors.push('内存限制必须为正整数(MB)');
+      }
+      const os = require('os');
+      const totalMemMB = Math.floor(os.totalmem() / (1024 * 1024));
+      if (memoryLimitMB > totalMemMB) {
+        errors.push(`内存限制(${memoryLimitMB}MB)超过系统总内存(${totalMemMB}MB)`);
+      }
+    }
+    
+    if (errors.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '资源限制验证失败', 
+        details: errors 
+      });
+    }
+    
+    // 更新资源限制
+    const updates = {};
+    if (cpuLimit !== undefined) updates.cpu_limit = cpuLimit;
+    if (memoryLimitMB !== undefined) updates.memory_limit_mb = memoryLimitMB;
+    
+    await ProjectDB.update(id, updates);
+    
+    // 获取更新后的项目信息
+    const project = await ProjectDB.getById(id);
+    
+    // 记录审计日志
+    try {
+      const { auditLogEnhanced, AUDIT_ACTION_TYPES } = require('../services/audit-log-enhanced');
+      await auditLogEnhanced({
+        action: AUDIT_ACTION_TYPES.PROJECT_RESOURCE_LIMITS_UPDATED,
+        resourceId: id,
+        resourceType: 'project',
+        details: {
+          projectName: project.name,
+          cpuLimit,
+          memoryLimitMB,
+          previousCpuLimit: project.cpu_limit,
+          previousMemoryLimitMB: project.memory_limit_mb
+        },
+        userId: req.user?.id || 'system'
+      });
+    } catch (auditError) {
+      logger.warn('审计日志记录失败:', auditError);
+    }
+    
+    res.json({ 
+      success: true, 
+      data: project,
+      message: `资源限制已更新: ${cpuLimit !== undefined ? `CPU: ${cpuLimit}核心` : ''} ${memoryLimitMB !== undefined ? `内存: ${memoryLimitMB}MB` : ''}`.trim()
+    });
+  } catch (error) {
+    logger.error('设置资源限制错误:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * 预览卸载内容（不实际删除）
  * GET /api/project/:id/uninstall-preview
  */

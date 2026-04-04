@@ -35,12 +35,14 @@ function initDatabase() {
           tags TEXT DEFAULT '',
           port INTEGER,
           health_url TEXT,
+          cpu_limit REAL DEFAULT NULL,
+          memory_limit_mb INTEGER DEFAULT NULL,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
       // 迁移：为旧数据库添加新字段（忽略已存在错误）
-      ['notes TEXT DEFAULT \"\"', 'tags TEXT DEFAULT \"\"', 'port INTEGER', 'health_url TEXT'].forEach(col => {
+      ['notes TEXT DEFAULT \"\"', 'tags TEXT DEFAULT \"\"', 'port INTEGER', 'health_url TEXT', 'cpu_limit REAL DEFAULT NULL', 'memory_limit_mb INTEGER DEFAULT NULL'].forEach(col => {
         db.run(`ALTER TABLE projects ADD COLUMN ${col}`, () => {});
       });
       
