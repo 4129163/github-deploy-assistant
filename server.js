@@ -5,17 +5,42 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
+const http = require('http');
+const socketIo = require('socket.io');
 
 // 安全存储路由
 const secureConfigRoutes = require('./src/routes/secure-config');
 
+// AI智能诊断闭环功能
+const { createDeployErrorCatcher } = require('./src/middleware/deploy-error-catcher');
+const aiRoutes = require('./src/routes/ai');
+
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 const PORT = process.env.PORT || 3000;
 
 // 中间件
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// Socket.io 中间件 - 使 io 实例在路由中可用
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
+
+// 部署错误捕获中间件
+app.use(createDeployErrorCatcher(io));
+
+// AI路由
+app.use('/api/ai', aiRoutes);
 
 // 数据存储
 let projects = [];
@@ -582,13 +607,50 @@ app.get('*', (req, res) => {
 });
 
 // 启动服务器
+// Socket.io 连接处理
+function setupSocketIO() {
+    io.on('connection', (socket) => {
+        console.log(`客户端连接: ${socket.id}`);
+        
+        // 加入项目房间
+        socket.on('join_project', (projectId) => {
+            socket.join(`project-${projectId}`);
+            console.log(`客户端 ${socket.id} 加入项目房间: project-${projectId}`);
+        });
+        
+        // 离开项目房间
+        socket.on('leave_project', (projectId) => {
+            socket.leave(`project-${projectId}`);
+            console.log(`客户端 ${socket.id} 离开项目房间: project-${projectId}`);
+        });
+        
+        // 断开连接
+        socket.on('disconnect', () => {
+            console.log(`客户端断开连接: ${socket.id}`);
+        });
+    });
+}
+
 async function startServer() {
     await initializeData();
     
-    app.listen(PORT, () => {
+    // 设置Socket.io
+    setupSocketIO();
+    
+    // 设置全局广播日志函数（用于部署服务）
+    global.broadcastLog = (projectId, message) => {
+        io.to(`project-${projectId}`).emit('log', {
+            timestamp: new Date().toISOString(),
+            message: message
+        });
+    };
+    
+    server.listen(PORT, () => {
         console.log(`GitHub Deploy Assistant 服务器运行在 http://localhost:${PORT}`);
         console.log(`API地址: http://localhost:${PORT}/api`);
         console.log(`前端地址: http://localhost:${PORT}`);
+        console.log(`WebSocket地址: ws://localhost:${PORT}`);
+        console.log('AI智能诊断闭环功能已启用');
     });
 }
 

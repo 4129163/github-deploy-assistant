@@ -455,4 +455,280 @@ router.post('/heal/:projectId/apply', async (req, res) => {
   }
 });
 
+// ==================== AI智能诊断闭环功能 ====================
+
+/**
+ * 部署错误诊断
+ * POST /api/ai/deploy-diagnose
+ */
+router.post('/deploy-diagnose', async (req, res) => {
+  try {
+    const { project_id, error_log, command = 'unknown', provider = null } = req.body;
+    
+    if (!project_id) {
+      return res.status(400).json({ error: '缺少 project_id' });
+    }
+    if (!error_log) {
+      return res.status(400).json({ error: '缺少 error_log' });
+    }
+    
+    const project = await ProjectDB.getById(project_id);
+    if (!project) {
+      return res.status(404).json({ error: '项目不存在' });
+    }
+    
+    // 调用手动触发诊断
+    const { manualTriggerDiagnosis } = require('../middleware/deploy-error-catcher');
+    const result = await manualTriggerDiagnosis(project_id, error_log, command);
+    
+    res.json({
+      success: true,
+      data: {
+        diagnosis_id: result.diagnosisId,
+        analysis: result.analysis,
+        suggestion: result.suggestion,
+        auto_fixable: result.auto_fixable,
+        fix_commands: result.fix_commands || [],
+        risk_level: result.risk_level || 'MEDIUM',
+        estimated_time: result.estimated_time || '未知',
+        commands_validated: result.commands_validated
+      }
+    });
+    
+  } catch (error) {
+    logger.error('部署错误诊断失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 获取诊断详情
+ * GET /api/ai/diagnosis/:diagnosisId
+ */
+router.get('/diagnosis/:diagnosisId', async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const { getDiagnosisDetail } = require('../middleware/deploy-error-catcher');
+    
+    const diagnosis = await getDiagnosisDetail(diagnosisId);
+    if (!diagnosis) {
+      return res.status(404).json({ error: '诊断记录不存在' });
+    }
+    
+    res.json({
+      success: true,
+      data: diagnosis
+    });
+    
+  } catch (error) {
+    logger.error('获取诊断详情失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 获取项目诊断历史
+ * GET /api/ai/diagnosis/project/:projectId
+ */
+router.get('/diagnosis/project/:projectId', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    const { getRecentDiagnoses } = require('../middleware/deploy-error-catcher');
+    
+    const diagnoses = await getRecentDiagnoses(projectId, limit);
+    
+    res.json({
+      success: true,
+      data: diagnoses
+    });
+    
+  } catch (error) {
+    logger.error('获取诊断历史失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 应用修复命令（需要用户确认）
+ * POST /api/ai/diagnosis/:diagnosisId/apply
+ */
+router.post('/diagnosis/:diagnosisId/apply', async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const { confirmation_token, commands } = req.body;
+    
+    if (!confirmation_token) {
+      return res.status(400).json({ error: '缺少确认令牌' });
+    }
+    if (!commands || !Array.isArray(commands) || commands.length === 0) {
+      return res.status(400).json({ error: '缺少修复命令' });
+    }
+    
+    // 获取诊断记录
+    const { DeploymentDiagnosisDB } = require('../services/database');
+    const diagnosis = await DeploymentDiagnosisDB.getById(diagnosisId);
+    if (!diagnosis) {
+      return res.status(404).json({ error: '诊断记录不存在' });
+    }
+    
+    // 验证确认令牌
+    const { verifyFixConfirmationToken } = require('../services/ai');
+    if (!verifyFixConfirmationToken(confirmation_token, diagnosisId, commands)) {
+      return res.status(403).json({ error: '确认令牌无效' });
+    }
+    
+    // 验证命令安全性
+    const { validateFixCommands } = require('../services/ai');
+    const validation = validateFixCommands(commands);
+    if (!validation.all_safe) {
+      return res.status(403).json({ 
+        error: '修复命令包含不安全操作', 
+        details: validation.results.filter(r => !r.safe) 
+      });
+    }
+    
+    // 获取项目信息
+    const project = await ProjectDB.getById(diagnosis.project_id);
+    if (!project) {
+      return res.status(404).json({ error: '项目不存在' });
+    }
+    
+    // 更新状态为已确认
+    await DeploymentDiagnosisDB.updateStatus(diagnosisId, 'CONFIRMED', {
+      applied_fix: commands
+    });
+    
+    // 执行修复命令
+    const { executeCommand } = require('../services/deploy');
+    const results = [];
+    let allSuccess = true;
+    
+    for (let i = 0; i < commands.length; i++) {
+      const cmd = commands[i];
+      logger.info(`执行修复命令 ${i+1}/${commands.length}: ${cmd}`);
+      
+      try {
+        const result = await executeCommand(cmd, project.local_path || require('../config').WORK_DIR);
+        results.push({
+          command: cmd,
+          success: result.success,
+          exitCode: result.exitCode,
+          output: result.outputs?.map(o => o.data).join('\n') || '',
+          error: result.error
+        });
+        
+        if (!result.success) {
+          allSuccess = false;
+          break; // 失败则停止执行后续命令
+        }
+        
+        // 短暂延迟，避免命令冲突
+        if (i < commands.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+      } catch (cmdError) {
+        results.push({
+          command: cmd,
+          success: false,
+          exitCode: -1,
+          output: '',
+          error: cmdError.message
+        });
+        allSuccess = false;
+        break;
+      }
+    }
+    
+    // 更新最终状态
+    const finalStatus = allSuccess ? 'SUCCESS' : 'FAILED';
+    await DeploymentDiagnosisDB.updateStatus(diagnosisId, finalStatus, {
+      fix_result: results
+    });
+    
+    // 通知前端
+    if (global.broadcastLog && project.id) {
+      const statusMsg = allSuccess ? '✅ 修复成功' : '❌ 修复失败';
+      global.broadcastLog(String(project.id), `${statusMsg}: 执行了 ${results.length} 个修复命令`);
+    }
+    
+    res.json({
+      success: allSuccess,
+      message: allSuccess ? '所有修复命令执行成功' : '部分修复命令执行失败',
+      data: {
+        status: finalStatus,
+        results,
+        total_commands: commands.length,
+        successful_commands: results.filter(r => r.success).length
+      }
+    });
+    
+  } catch (error) {
+    logger.error('应用修复命令失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 生成修复确认令牌
+ * POST /api/ai/diagnosis/:diagnosisId/generate-token
+ */
+router.post('/diagnosis/:diagnosisId/generate-token', async (req, res) => {
+  try {
+    const { diagnosisId } = req.params;
+    const { commands } = req.body;
+    
+    if (!commands || !Array.isArray(commands)) {
+      return res.status(400).json({ error: '缺少修复命令' });
+    }
+    
+    // 获取诊断记录
+    const { DeploymentDiagnosisDB } = require('../services/database');
+    const diagnosis = await DeploymentDiagnosisDB.getById(diagnosisId);
+    if (!diagnosis) {
+      return res.status(404).json({ error: '诊断记录不存在' });
+    }
+    
+    // 生成确认令牌
+    const { generateFixConfirmationToken } = require('../services/ai');
+    const token = generateFixConfirmationToken(diagnosisId, commands);
+    
+    res.json({
+      success: true,
+      data: { token }
+    });
+    
+  } catch (error) {
+    logger.error('生成确认令牌失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * 验证修复命令安全性
+ * POST /api/ai/validate-commands
+ */
+router.post('/validate-commands', async (req, res) => {
+  try {
+    const { commands } = req.body;
+    
+    if (!commands || !Array.isArray(commands)) {
+      return res.status(400).json({ error: '缺少命令列表' });
+    }
+    
+    const { validateFixCommands } = require('../services/ai');
+    const result = validateFixCommands(commands);
+    
+    res.json({
+      success: true,
+      data: result
+    });
+    
+  } catch (error) {
+    logger.error('验证命令失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

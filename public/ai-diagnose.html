@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI智能诊断 - Gitee部署助手</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --success-color: #198754;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #0dcaf0;
+        }
+        
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+        }
+        
+        .diagnosis-card {
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border: none;
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        
+        .diagnosis-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .risk-badge {
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        
+        .risk-low {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+        
+        .risk-medium {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .risk-high {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        
+        .status-pending {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .status-analyzed {
+            background-color: #cfe2ff;
+            color: #084298;
+        }
+        
+        .status-confirmed {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .status-applied {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-success {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+        
+        .status-failed {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .command-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid var(--primary-color);
+            padding: 12px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+        
+        .command-box pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .progress-container {
+            height: 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background-color: var(--primary-color);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .fix-btn {
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        
+        .fix-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .fix-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #212529;
+            color: #f8f9fa;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        
+        .log-line {
+            margin-bottom: 2px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .log-error {
+            color: #ff6b6b;
+        }
+        
+        .log-success {
+            color: #51cf66;
+        }
+        
+        .log-info {
+            color: #4dabf7;
+        }
+        
+        .log-warning {
+            color: #ffd43b;
+        }
+        
+        .back-link {
+            text-decoration: none;
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
+        .section-title {
+            border-bottom: 2px solid #dee2e6;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            color: #343a40;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+        
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        .command-validation {
+            font-size: 0.85rem;
+        }
+        
+        .validation-safe {
+            color: var(--success-color);
+        }
+        
+        .validation-unsafe {
+            color: var(--danger-color);
+        }
+        
+        .validation-warning {
+            color: var(--warning-color);
+        }
+        
+        @media (max-width: 768px) {
+            .diagnosis-card {
+                margin-bottom: 15px;
+            }
+            
+            .fix-btn {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-robot me-2"></i>Gitee部署助手 - AI智能诊断
+            </a>
+            <div class="navbar-nav">
+                <a class="nav-link text-white" href="/">
+                    <i class="fas fa-home me-1"></i>返回首页
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="container mt-4">
+        <!-- 页面标题和返回链接 -->
+        <div class="row mb-4">
+            <div class="col">
+                <a href="/" class="back-link">
+                    <i class="fas fa-arrow-left me-2"></i>返回项目列表
+                </a>
+                <h2 class="mt-3">AI智能诊断中心</h2>
+                <p class="text-muted">当部署失败时，AI会自动分析错误并提供修复建议</p>
+            </div>
+        </div>
+
+        <!-- 诊断列表 -->
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- 当前诊断 -->
+                <div id="currentDiagnosisSection" class="d-none">
+                    <div class="card diagnosis-card">
+                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-stethoscope me-2"></i>当前诊断
+                                <span id="diagnosisStatusBadge" class="status-badge ms-2"></span>
+                            </h5>
+                            <div>
+                                <span id="diagnosisRiskBadge" class="risk-badge me-2"></span>
+                                <span id="diagnosisTime" class="text-white-50 small"></span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- 项目信息 -->
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <h6>项目信息</h6>
+                                    <p class="mb-1"><strong>名称:</strong> <span id="projectName">-</span></p>
+                                    <p class="mb-0"><strong>失败命令:</strong> <code id="failedCommand">-</code></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>诊断信息</h6>
+                                    <p class="mb-1"><strong>诊断ID:</strong> <span id="diagnosisId">-</span></p>
+                                    <p class="mb-0"><strong>可自动修复:</strong> <span id="autoFixable">-</span></p>
+                                </div>
+                            </div>
+
+                            <!-- 错误分析 -->
+                            <div class="mb-4">
+                                <h6 class="section-title">错误分析</h6>
+                                <div class="alert alert-info" id="errorAnalysis">
+                                    正在分析错误...
+                                </div>
+                            </div>
+
+                            <!-- 修复建议 -->
+                            <div class="mb-4">
+                                <h6 class="section-title">修复建议</h6>
+                                <div class="alert" id="fixSuggestion">
+                                    正在生成修复建议...
+                                </div>
+                            </div>
+
+                            <!-- 修复命令 -->
+                            <div id="fixCommandsSection" class="d-none">
+                                <h6 class="section-title">修复命令</h6>
+                                <div id="fixCommandsList" class="mb-3">
+                                    <!-- 修复命令列表将通过JS动态生成 -->
+                                </div>
+                                
+                                <!-- 命令验证状态 -->
+                                <div id="commandsValidation" class="mb-3">
+                                    <!-- 验证状态将通过JS动态生成 -->
+                                </div>
+                                
+                                <!-- 一键修复按钮 -->
+                                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                    <button id="quickFixBtn" class="btn btn-success fix-btn">
+                                        <i class="fas fa-magic me-2"></i>一键修复
+                                    </button>
+                                    <button id="manualFixBtn" class="btn btn-outline-primary fix-btn">
+                                        <i class="fas fa-terminal me-2"></i>手动执行
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 修复进度 -->
+                            <div id="fixProgressSection" class="d-none">
+                                <h6 class="section-title">修复进度</h6>
+                                <div class="progress-container mb-2">
+                                    <div id="fixProgressBar" class="progress-bar" style="width: 0%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between mb-3">
+                                    <span id="progressText">准备执行...</span>
+                                    <span id="progressPercent">0%</span>
+                                </div>
+                                
+                                <!-- 执行日志 -->
+                                <div class="log-container" id="executionLog">
+                                    <!-- 执行日志将通过JS动态生成 -->
+                                </div>
+                            </div>
+
+                            <!-- 修复结果 -->
+                            <div id="fixResultSection" class="d-none">
+                                <h6 class="section-title">修复结果</h6>
+                                <div id="fixResultAlert" class="alert">
+                                    <!-- 修复结果将通过JS动态生成 -->
+                                </div>
+                                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                    <button id="redeployBtn" class="btn btn-primary fix-btn">
+                                        <i class="fas fa-redo me-2"></i>重新部署
+                                    </button>
+                                    <button id="viewDetailsBtn" class="btn btn-outline-secondary fix-btn">
+                                        <i class="fas fa-list me-2"></i>查看详情
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 历史诊断 -->
+                <div id="historySection">
+                    <h4 class="section-title">历史诊断记录</h4>
+                    <div id="historyList">
+                        <div class="empty-state">
+                            <i class="fas fa-history"></i>
+                            <h5 class="mt-3">暂无历史诊断记录</h5>
+                            <p class="text-muted">当部署失败时，AI会自动创建诊断记录</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 侧边栏 -->
+            <div class="col-lg-4">
+                <!-- 手动诊断 -->
+                <div class="card diagnosis-card mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-bug me-2"></i>手动诊断
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">手动提交错误日志进行AI分析</p>
+                        
+                        <div class="mb-3">
+                            <label for="projectSelect" class="form-label">选择项目</label>
+                            <select class="form-select" id="projectSelect">
+                                <option value="">请选择项目...</option>
+                                <!-- 项目选项将通过JS动态生成 -->
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="errorLog" class="form-label">错误日志</label>
+                            <textarea class="form-control" id="errorLog" rows="5" 
+                                      placeholder="粘贴错误日志内容..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="failedCommandInput" class="form-label">失败命令</label>
+                            <input type="text" class="form-control" id="failedCommandInput" 
+                                   placeholder="例如: npm install, docker build...">
+                        </div>
+                        
+                        <button id="manualDiagnoseBtn" class="btn btn-info w-100">
+                            <i class="fas fa-search me-2"></i>开始诊断
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 帮助信息 -->
+                <div class="card diagnosis-card">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">
+                            <i class="fas fa-question-circle me-2"></i>使用说明
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <h6>AI智能诊断流程</h6>
+                        <ol class="small">
+                            <li>部署失败时自动触发诊断</li>
+                            <li>AI分析错误原因并生成修复建议</li>
+                            <li>系统验证修复命令安全性</li>
+                            <li>用户确认后执行修复</li>
+                            <li>显示修复结果和后续建议</li>
+                        </ol>
+                        
+                        <h6 class="mt-3">风险等级说明</h6>
+                        <ul class="small">
+                            <li><span class="risk-badge risk-low">低风险</span>: 安全操作，可自动修复</li>
+                            <li><span class="risk-badge risk-medium">中风险</span>: 需要用户确认</li>
+                            <li><span class="risk-badge risk-high">高风险</span>: 建议人工处理</li>
+                        </ul>
+                        
+                        <div class="alert alert-warning small mt-3">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>安全提示:</strong> 自动修复功能会执行系统命令，请仔细检查AI建议的命令。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认修复对话框 -->
+    <div class="modal fade" id="confirmFixModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>确认修复操作
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        <strong>安全警告:</strong> 即将执行系统命令，请仔细检查以下命令。
+                    </div>
+                    
+                    <h6>将要执行的命令:</h6>
+                    <div id="confirmCommandsList" class="mb-3">
+                        <!-- 确认命令列表将通过JS动态生成 -->
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirmationCheck" class="form-label">
+                            <input type="checkbox" class="form-check-input me-2" id="confirmationCheck">
+                            我确认已检查以上命令，理解可能的风险，并同意执行
+                        </label>
+                    </div>
+                    
+                    <div class="alert alert-info small">
+                        <i class="fas fa-info-circle me-2"></i>
+                        执行过程中可以随时停止，但已执行的命令无法撤销。
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-warning" id="confirmFixBtn" disabled>确认执行</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 脚本 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/ai-diagnose.js"></script>
+</body>
+</html>

@@ -77,6 +77,26 @@ function initDatabase() {
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (project_id) REFERENCES projects(id)
         )
+      `);
+      
+      // 创建部署诊断表（AI智能诊断闭环功能）
+      db.run(`
+        CREATE TABLE IF NOT EXISTS deployment_diagnoses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL,
+          deployment_id INTEGER,
+          error_log TEXT NOT NULL,
+          failed_command TEXT NOT NULL,
+          ai_diagnosis TEXT NOT NULL,
+          applied_fix TEXT,
+          fix_result TEXT,
+          risk_level TEXT CHECK(risk_level IN ('LOW', 'MEDIUM', 'HIGH')),
+          status TEXT CHECK(status IN ('PENDING', 'ANALYZED', 'CONFIRMED', 'APPLIED', 'SUCCESS', 'FAILED', 'ROLLED_BACK')) DEFAULT 'PENDING',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (project_id) REFERENCES projects (id),
+          FOREIGN KEY (deployment_id) REFERENCES deploy_logs (id)
+        )
       `, (err) => {
         if (err) {
           reject(err);
@@ -289,11 +309,140 @@ Object.assign(ConversationDB, {
   }
 });
 
+// 部署诊断相关操作
+const DeploymentDiagnosisDB = {
+  create: (diagnosis) => {
+    return new Promise((resolve, reject) => {
+      const {
+        project_id,
+        deployment_id,
+        error_log,
+        failed_command,
+        ai_diagnosis,
+        risk_level = 'MEDIUM',
+        status = 'PENDING'
+      } = diagnosis;
+      
+      db.run(
+        `INSERT INTO deployment_diagnoses 
+        (project_id, deployment_id, error_log, failed_command, ai_diagnosis, risk_level, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [project_id, deployment_id, error_log, failed_command, JSON.stringify(ai_diagnosis), risk_level, status],
+        function(err) {
+          if (err) reject(err);
+          else resolve({ id: this.lastID, ...diagnosis });
+        }
+      );
+    });
+  },
+  
+  getById: (id) => {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT * FROM deployment_diagnoses WHERE id = ?', [id], (err, row) => {
+        if (err) reject(err);
+        else if (row) {
+          resolve({
+            ...row,
+            ai_diagnosis: row.ai_diagnosis ? JSON.parse(row.ai_diagnosis) : null,
+            applied_fix: row.applied_fix ? JSON.parse(row.applied_fix) : null,
+            fix_result: row.fix_result ? JSON.parse(row.fix_result) : null
+          });
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  },
+  
+  getByProjectId: (projectId, limit = 20) => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT * FROM deployment_diagnoses WHERE project_id = ? ORDER BY created_at DESC LIMIT ?',
+        [projectId, limit],
+        (err, rows) => {
+          if (err) reject(err);
+          else {
+            resolve(rows.map(row => ({
+              ...row,
+              ai_diagnosis: row.ai_diagnosis ? JSON.parse(row.ai_diagnosis) : null,
+              applied_fix: row.applied_fix ? JSON.parse(row.applied_fix) : null,
+              fix_result: row.fix_result ? JSON.parse(row.fix_result) : null
+            })));
+          }
+        }
+      );
+    });
+  },
+  
+  updateStatus: (id, status, data = {}) => {
+    return new Promise((resolve, reject) => {
+      const updates = [];
+      const values = [];
+      
+      updates.push('status = ?');
+      values.push(status);
+      
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      
+      if (data.applied_fix !== undefined) {
+        updates.push('applied_fix = ?');
+        values.push(JSON.stringify(data.applied_fix));
+      }
+      
+      if (data.fix_result !== undefined) {
+        updates.push('fix_result = ?');
+        values.push(JSON.stringify(data.fix_result));
+      }
+      
+      if (data.risk_level !== undefined) {
+        updates.push('risk_level = ?');
+        values.push(data.risk_level);
+      }
+      
+      values.push(id);
+      
+      db.run(
+        `UPDATE deployment_diagnoses SET ${updates.join(', ')} WHERE id = ?`,
+        values,
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  },
+  
+  getRecentUnresolved: (projectId, hours = 24) => {
+    return new Promise((resolve, reject) => {
+      db.all(
+        `SELECT * FROM deployment_diagnoses 
+         WHERE project_id = ? 
+         AND status IN ('PENDING', 'ANALYZED', 'CONFIRMED')
+         AND created_at >= datetime('now', ?) 
+         ORDER BY created_at DESC`,
+        [projectId, `-${hours} hours`],
+        (err, rows) => {
+          if (err) reject(err);
+          else {
+            resolve(rows.map(row => ({
+              ...row,
+              ai_diagnosis: row.ai_diagnosis ? JSON.parse(row.ai_diagnosis) : null,
+              applied_fix: row.applied_fix ? JSON.parse(row.applied_fix) : null,
+              fix_result: row.fix_result ? JSON.parse(row.fix_result) : null
+            })));
+          }
+        }
+      );
+    });
+  }
+};
+
 module.exports = {
   initDatabase,
   getDb,
   ProjectDB,
   DeployLogDB,
   ConfigDB,
-  ConversationDB
+  ConversationDB,
+  DeploymentDiagnosisDB
 };

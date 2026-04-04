@@ -370,6 +370,259 @@ async function answerQuestion(project, question, history = [], provider = null) 
 }
 
 /**
+ * 分析部署错误日志，生成修复建议
+ * @param {Object} projectInfo - 项目信息 {name, repo_url, project_type, local_path, ...}
+ * @param {string} errorLog - 错误日志内容
+ * @param {string} command - 失败的命令
+ * @param {string} provider - AI 提供商（可选）
+ * @returns {Promise<Object>} - 修复建议对象
+ */
+async function diagnoseDeploymentError(projectInfo, errorLog, command, provider = null) {
+  const messages = [
+    {
+      role: 'system',
+      content: `你是一个专业的 DevOps 工程师，擅长分析项目部署错误并给出修复方案。请用简体中文回复，回复格式必须是合法 JSON。
+
+考虑以下常见错误类型：
+1. 依赖问题（npm/pip/composer 版本冲突、缺失依赖）
+2. 环境配置问题（环境变量、配置文件、路径配置）
+3. 权限问题（文件权限、用户权限、SELinux/AppArmor）
+4. 网络问题（代理配置、防火墙、DNS解析、包下载超时）
+5. 代码语法错误（Node.js/Python/Java 等语法错误）
+6. 配置文件缺失（package.json、requirements.txt、composer.json 等）
+7. 端口占用（服务端口已被占用）
+8. 内存不足（进程被 OOM killer 终止）
+9. 磁盘空间不足
+10. 系统依赖缺失（gcc、make、python-dev 等）
+
+请根据错误日志提供准确的分析和安全的修复建议。修复命令必须是安全的，不能包含危险操作如 \`rm -rf\`、\`chmod 777\` 等。`
+    },
+    {
+      role: 'user',
+      content: `项目信息：
+- 名称: ${projectInfo.name || '未知'}
+- 仓库: ${projectInfo.repo_url || '未知'}
+- 类型: ${projectInfo.project_type || '未知'}
+- 本地路径: ${projectInfo.local_path || '未知'}
+- 失败命令: ${command || '未知'}
+
+错误日志（最后2000字符）：
+${errorLog.slice(-2000)}
+
+请分析错误原因并给出修复建议。返回严格的 JSON 格式：
+{
+  "analysis": "错误原因分析（1-3句话，明确具体）",
+  "suggestion": "修复步骤说明（给用户看的详细文字说明，包含具体命令示例）",
+  "auto_fixable": true/false,
+  "fix_commands": ["可自动执行的命令数组", "必须按顺序执行，每个命令独立一行"],
+  "risk_level": "LOW/MEDIUM/HIGH",
+  "estimated_time": "预计修复时间（如：1分钟、5分钟等）",
+  "required_permissions": ["所需权限，如：file_write, package_install, env_config等"]
+}
+
+注意事项：
+1. 只有确定安全的命令才能放入 fix_commands
+2. 高风险操作（如修改系统文件）必须标记 risk_level: "HIGH"
+3. 如果无法确定安全修复方案，设置 auto_fixable: false
+4. 修复命令应该针对具体错误，不能是通用的"重启试试"`}
+  ];
+
+  try {
+    const result = await chat(messages, provider);
+    
+    // 解析 JSON 结果
+    let parsedResult;
+    try {
+      // 尝试提取 JSON 部分
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedResult = JSON.parse(jsonMatch[0]);
+      } else {
+        parsedResult = JSON.parse(result);
+      }
+    } catch (parseError) {
+      logger.warn(`AI诊断结果JSON解析失败: ${parseError.message}`);
+      // 返回默认格式
+      parsedResult = {
+        analysis: result.substring(0, 500),
+        suggestion: 'AI返回格式异常，请手动分析错误日志',
+        auto_fixable: false,
+        fix_commands: [],
+        risk_level: 'HIGH',
+        estimated_time: '未知',
+        required_permissions: []
+      };
+    }
+
+    // 验证必要字段
+    if (!parsedResult.analysis || !parsedResult.suggestion) {
+      parsedResult.analysis = parsedResult.analysis || 'AI分析结果格式异常';
+      parsedResult.suggestion = parsedResult.suggestion || '请手动检查错误日志';
+      parsedResult.auto_fixable = false;
+    }
+
+    // 确保 fix_commands 是数组
+    if (!Array.isArray(parsedResult.fix_commands)) {
+      parsedResult.fix_commands = [];
+    }
+
+    // 验证风险等级
+    const validRiskLevels = ['LOW', 'MEDIUM', 'HIGH'];
+    if (!validRiskLevels.includes(parsedResult.risk_level)) {
+      parsedResult.risk_level = 'MEDIUM';
+    }
+
+    // 验证 auto_fixable 逻辑一致性
+    if (parsedResult.auto_fixable && parsedResult.fix_commands.length === 0) {
+      parsedResult.auto_fixable = false;
+    }
+    if (parsedResult.risk_level === 'HIGH' && parsedResult.auto_fixable) {
+      // 高风险操作默认不可自动修复，需要用户确认
+      parsedResult.auto_fixable = false;
+    }
+
+    logger.info(`AI诊断完成: ${projectInfo.name}, auto_fixable=${parsedResult.auto_fixable}, risk=${parsedResult.risk_level}`);
+    return parsedResult;
+
+  } catch (error) {
+    logger.error(`AI诊断失败: ${error.message}`);
+    throw new Error(`AI诊断失败: ${error.message}`);
+  }
+}
+
+/**
+ * 验证修复命令安全性
+ * @param {string} command - 要验证的命令
+ * @returns {Object} {safe: boolean, reason: string}
+ */
+function validateFixCommand(command) {
+  if (!command || typeof command !== 'string') {
+    return { safe: false, reason: '命令为空或格式错误' };
+  }
+
+  const trimmedCmd = command.trim().toLowerCase();
+  
+  // 危险命令黑名单
+  const dangerousPatterns = [
+    /rm\s+-rf/,
+    /rm\s+.*\s+-rf/,
+    /chmod\s+[0-9]{3,4}/,
+    /chown\s+.*\s+root/,
+    /dd\s+if=.*\s+of=/,
+    /mkfs\./,
+    /fdisk/,
+    /wipefs/,
+    /:\(\)\{.*\};/,
+    /wget\s+.*\s+\|\s+sh/,
+    /curl\s+.*\s+\|\s+(sh|bash)/,
+    />\s*\/dev\/sda/,
+    /cat\s+.*\s+>\s*\/dev\/sda/,
+    /echo\s+.*\s+>\s*\/proc/,
+    /sysctl\s+-w/,
+    /iptables\s+.*\s+--jump\s+DROP/,
+    /useradd\s+.*\s+-o\s+-u\s+0/,
+    /passwd\s+.*\s+--stdin/
+  ];
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(trimmedCmd)) {
+      return { safe: false, reason: '命令包含危险操作' };
+    }
+  }
+
+  // 允许的安全命令白名单模式
+  const safePatterns = [
+    /^npm\s+(install|ci|audit|run|test|start|stop)/,
+    /^yarn\s+(add|install|remove|upgrade|run|test|start)/,
+    /^pnpm\s+(add|install|remove|update|run|test|start)/,
+    /^pip\s+(install|uninstall|freeze|list)/,
+    /^python\s+-m\s+pip/,
+    /^composer\s+(install|update|require|remove)/,
+    /^go\s+(get|install|build|run|test|mod)/,
+    /^docker\s+(build|run|stop|rm|ps|images)/,
+    /^git\s+(clone|pull|checkout|reset|clean)/,
+    /^cp\s+.*/,
+    /^mv\s+.*/,
+    /^chmod\s+[0-7]{3}\s+.*/,
+    /^chown\s+[a-zA-Z0-9_]+\s+.*/,
+    /^mkdir\s+.*/,
+    /^touch\s+.*/,
+    /^echo\s+.*/,
+    /^cat\s+>/,
+    /^sed\s+.*/,
+    /^grep\s+.*/,
+    /^find\s+.*/,
+    /^ls\s+.*/,
+    /^pwd/,
+    /^which\s+.*/,
+    /^node\s+.*/,
+    /^npm\s+config\s+set/,
+    /^export\s+.*=/,
+    /^source\s+.*/,
+    /^\.\s+.*/
+  ];
+
+  // 检查是否匹配安全模式
+  for (const pattern of safePatterns) {
+    if (pattern.test(trimmedCmd)) {
+      return { safe: true, reason: '命令在安全白名单内' };
+    }
+  }
+
+  // 如果既不在黑名单也不在白名单，需要人工审核
+  return { safe: false, reason: '命令需要人工审核' };
+}
+
+/**
+ * 批量验证修复命令
+ * @param {Array<string>} commands - 命令数组
+ * @returns {Object} {all_safe: boolean, results: Array<{command: string, safe: boolean, reason: string}>}
+ */
+function validateFixCommands(commands) {
+  if (!Array.isArray(commands)) {
+    return { all_safe: false, results: [] };
+  }
+
+  const results = commands.map(cmd => ({
+    command: cmd,
+    ...validateFixCommand(cmd)
+  }));
+
+  const all_safe = results.every(r => r.safe);
+  return { all_safe, results };
+}
+
+/**
+ * 生成修复确认令牌
+ * @param {string} diagnosisId - 诊断ID
+ * @param {Array<string>} commands - 修复命令
+ * @returns {string} 确认令牌
+ */
+function generateFixConfirmationToken(diagnosisId, commands) {
+  const timestamp = Date.now();
+  const commandHash = commands.join('|').split('').reduce((a, b) => {
+    a = ((a << 5) - a) + b.charCodeAt(0);
+    return a & a;
+  }, 0).toString(16);
+  
+  return `${diagnosisId}_${timestamp}_${commandHash}`;
+}
+
+/**
+ * 验证修复确认令牌
+ * @param {string} token - 确认令牌
+ * @param {string} diagnosisId - 诊断ID
+ * @param {Array<string>} commands - 修复命令
+ * @returns {boolean} 是否有效
+ */
+function verifyFixConfirmationToken(token, diagnosisId, commands) {
+  if (!token || !diagnosisId || !commands) return false;
+  
+  const expectedToken = generateFixConfirmationToken(diagnosisId, commands);
+  return token === expectedToken;
+}
+
+/**
  * 智能解析粘贴文本中的 AI 配置
  * 支持格式：
  * - 纯 API Key（自动识别提供商）
@@ -508,5 +761,11 @@ module.exports = {
   detectProviderByKey,
   getDefaultBaseURL,
   getDefaultModel,
-  getProviderName
+  getProviderName,
+  // 新增的AI诊断功能
+  diagnoseDeploymentError,
+  validateFixCommand,
+  validateFixCommands,
+  generateFixConfirmationToken,
+  verifyFixConfirmationToken
 };
