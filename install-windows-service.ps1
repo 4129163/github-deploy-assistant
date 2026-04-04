@@ -1,0 +1,493 @@
+# GADA Windows Service Installation Script
+# PowerShell script for installing GADA as a Windows Service
+# Version: 1.0.0
+
+param(
+    [string]$ServiceName = "GADA",
+    [string]$DisplayName = "GitHub Deploy Assistant",
+    [string]$Description = "GitHub Deploy Assistant - Intelligent project deployment and management service",
+    [string]$InstallPath = $null,
+    [switch]$Uninstall,
+    [switch]$Start,
+    [switch]$Stop,
+    [switch]$Restart,
+    [switch]$Status,
+    [switch]$Help
+)
+
+# 显示帮助信息
+function Show-Help {
+    Write-Host "GitHub Deploy Assistant (GADA) Windows Service Manager" -ForegroundColor Cyan
+    Write-Host "======================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Usage: .\install-windows-service.ps1 [options]"
+    Write-Host ""
+    Write-Host "Options:"
+    Write-Host "  -ServiceName <name>      Service name (default: GADA)"
+    Write-Host "  -DisplayName <name>      Service display name (default: GitHub Deploy Assistant)"
+    Write-Host "  -Description <text>      Service description"
+    Write-Host "  -InstallPath <path>      Installation directory (default: current directory)"
+    Write-Host "  -Uninstall               Uninstall the service"
+    Write-Host "  -Start                   Start the service after installation"
+    Write-Host "  -Stop                    Stop the service"
+    Write-Host "  -Restart                 Restart the service"
+    Write-Host "  -Status                  Show service status"
+    Write-Host "  -Help                    Show this help message"
+    Write-Host ""
+    Write-Host "Examples:"
+    Write-Host "  .\install-windows-service.ps1 -Install"
+    Write-Host "  .\install-windows-service.ps1 -Uninstall"
+    Write-Host "  .\install-windows-service.ps1 -Status"
+    Write-Host "  .\install-windows-service.ps1 -Restart"
+    Write-Host ""
+}
+
+# 检查管理员权限
+function Test-Administrator {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# 显示错误信息
+function Show-Error {
+    param([string]$Message)
+    Write-Host "ERROR: $Message" -ForegroundColor Red
+    exit 1
+}
+
+# 显示成功信息
+function Show-Success {
+    param([string]$Message)
+    Write-Host "SUCCESS: $Message" -ForegroundColor Green
+}
+
+# 显示警告信息
+function Show-Warning {
+    param([string]$Message)
+    Write-Host "WARNING: $Message" -ForegroundColor Yellow
+}
+
+# 显示信息
+function Show-Info {
+    param([string]$Message)
+    Write-Host "INFO: $Message" -ForegroundColor Cyan
+}
+
+# 检查服务是否存在
+function Test-ServiceExists {
+    param([string]$Name)
+    try {
+        $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        return ($null -ne $service)
+    } catch {
+        return $false
+    }
+}
+
+# 获取服务状态
+function Get-ServiceStatus {
+    param([string]$Name)
+    try {
+        $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($null -eq $service) {
+            return "NotInstalled"
+        }
+        return $service.Status.ToString()
+    } catch {
+        return "Unknown"
+    }
+}
+
+# 安装服务
+function Install-Service {
+    param(
+        [string]$Name,
+        [string]$DisplayName,
+        [string]$Description,
+        [string]$Path,
+        [string]$NodePath = "node.exe"
+    )
+    
+    Show-Info "Installing GADA Windows Service..."
+    
+    # 检查Node.js
+    $nodeExe = Get-Command "node.exe" -ErrorAction SilentlyContinue
+    if (-not $nodeExe) {
+        Show-Warning "Node.js not found in PATH. Trying to find it in common locations..."
+        
+        # 尝试常见位置
+        $commonPaths = @(
+            "C:\Program Files\nodejs\node.exe",
+            "C:\Program Files (x86)\nodejs\node.exe",
+            "$env:USERPROFILE\AppData\Local\Programs\nodejs\node.exe"
+        )
+        
+        foreach ($commonPath in $commonPaths) {
+            if (Test-Path $commonPath) {
+                $NodePath = $commonPath
+                Show-Info "Found Node.js at: $NodePath"
+                break
+            }
+        }
+        
+        if ($NodePath -eq "node.exe") {
+            Show-Error "Node.js not found. Please install Node.js from https://nodejs.org/"
+        }
+    } else {
+        $NodePath = $nodeExe.Source
+        Show-Info "Found Node.js at: $NodePath"
+    }
+    
+    # 检查安装目录
+    if (-not (Test-Path $Path)) {
+        Show-Error "Installation path not found: $Path"
+    }
+    
+    # 检查主要文件
+    $serverFile = Join-Path $Path "src\server\index.js"
+    if (-not (Test-Path $serverFile)) {
+        $serverFile = Join-Path $Path "server.js"
+        if (-not (Test-Path $serverFile)) {
+            Show-Error "Main server file not found in: $Path"
+        }
+    }
+    
+    # 创建服务脚本文件
+    $serviceScript = Join-Path $Path "gada-service.js"
+    $serviceScriptContent = @"
+/**
+ * GADA Windows Service Wrapper
+ * This file is auto-generated by install-windows-service.ps1
+ */
+
+const { Service } = require('node-windows');
+const path = require('path');
+const fs = require('fs');
+
+// 服务配置
+const service = new Service({
+    name: '$Name',
+    description: '$Description',
+    script: path.join(__dirname, '${(Split-Path $serverFile -Leaf)}'),
+    nodeOptions: [
+        '--harmony',
+        '--max_old_space_size=4096'
+    ],
+    workingDirectory: '$Path',
+    env: [
+        {
+            name: 'NODE_ENV',
+            value: 'production'
+        },
+        {
+            name: 'PORT',
+            value: '3456'
+        }
+    ]
+});
+
+// 服务事件
+service.on('install', () => {
+    console.log('Service installed successfully');
+    service.start();
+});
+
+service.on('alreadyinstalled', () => {
+    console.log('Service is already installed');
+});
+
+service.on('start', () => {
+    console.log('Service started successfully');
+});
+
+service.on('stop', () => {
+    console.log('Service stopped');
+});
+
+service.on('uninstall', () => {
+    console.log('Service uninstalled successfully');
+});
+
+service.on('error', (error) => {
+    console.error('Service error:', error);
+});
+
+// 处理命令行参数
+const action = process.argv[2];
+switch (action) {
+    case 'install':
+        service.install();
+        break;
+    case 'uninstall':
+        service.uninstall();
+        break;
+    case 'start':
+        service.start();
+        break;
+    case 'stop':
+        service.stop();
+        break;
+    case 'restart':
+        service.restart();
+        break;
+    default:
+        console.log('Usage: node gada-service.js [install|uninstall|start|stop|restart]');
+        break;
+}
+"@
+    
+    # 写入服务脚本
+    try {
+        Set-Content -Path $serviceScript -Value $serviceScriptContent -Encoding UTF8
+        Show-Info "Created service wrapper script: $serviceScript"
+    } catch {
+        Show-Error "Failed to create service script: $_"
+    }
+    
+    # 安装node-windows模块（如果未安装）
+    $nodeWindowsPath = Join-Path $Path "node_modules\node-windows"
+    if (-not (Test-Path $nodeWindowsPath)) {
+        Show-Info "Installing node-windows module..."
+        try {
+            Push-Location $Path
+            & npm install node-windows --save
+            Pop-Location
+            Show-Success "node-windows module installed successfully"
+        } catch {
+            Show-Error "Failed to install node-windows module: $_"
+        }
+    }
+    
+    # 使用node-windows安装服务
+    Show-Info "Installing Windows service using node-windows..."
+    try {
+        Push-Location $Path
+        & node $serviceScript install
+        Pop-Location
+        
+        # 等待服务安装完成
+        Start-Sleep -Seconds 3
+        
+        if (Test-ServiceExists -Name $Name) {
+            Show-Success "Service '$Name' installed successfully"
+            
+            # 设置服务恢复选项
+            try {
+                & sc.exe failure $Name reset= 86400 actions= restart/5000/restart/10000/restart/15000
+                Show-Info "Service recovery options configured"
+            } catch {
+                Show-Warning "Failed to configure service recovery options: $_"
+            }
+            
+            return $true
+        } else {
+            Show-Error "Service installation may have failed - service not found"
+        }
+    } catch {
+        Show-Error "Failed to install service: $_"
+    }
+    
+    return $false
+}
+
+# 卸载服务
+function Uninstall-Service {
+    param([string]$Name, [string]$Path)
+    
+    Show-Info "Uninstalling GADA Windows Service..."
+    
+    # 检查服务是否存在
+    if (-not (Test-ServiceExists -Name $Name)) {
+        Show-Warning "Service '$Name' not found"
+        return $true
+    }
+    
+    # 停止服务
+    $status = Get-ServiceStatus -Name $Name
+    if ($status -eq "Running") {
+        Show-Info "Stopping service..."
+        try {
+            Stop-Service -Name $Name -Force -ErrorAction Stop
+            Start-Sleep -Seconds 2
+            Show-Success "Service stopped"
+        } catch {
+            Show-Warning "Failed to stop service: $_"
+        }
+    }
+    
+    # 使用node-windows卸载服务
+    $serviceScript = Join-Path $Path "gada-service.js"
+    if (Test-Path $serviceScript) {
+        try {
+            Push-Location $Path
+            & node $serviceScript uninstall
+            Pop-Location
+            
+            # 等待服务卸载完成
+            Start-Sleep -Seconds 2
+            
+            if (-not (Test-ServiceExists -Name $Name)) {
+                Show-Success "Service '$Name' uninstalled successfully"
+                return $true
+            } else {
+                Show-Error "Service uninstallation may have failed - service still exists"
+            }
+        } catch {
+            Show-Warning "Failed to uninstall using node-windows: $_"
+        }
+    }
+    
+    # 回退方案：使用sc.exe
+    Show-Info "Trying alternative uninstallation method..."
+    try {
+        & sc.exe delete $Name
+        Start-Sleep -Seconds 2
+        
+        if (-not (Test-ServiceExists -Name $Name)) {
+            Show-Success "Service '$Name' uninstalled successfully (using sc.exe)"
+            return $true
+        } else {
+            Show-Error "Service uninstallation failed"
+        }
+    } catch {
+        Show-Error "Failed to uninstall service: $_"
+    }
+    
+    return $false
+}
+
+# 主程序
+function Main {
+    # 显示帮助
+    if ($Help) {
+        Show-Help
+        return
+    }
+    
+    # 检查管理员权限
+    if (-not (Test-Administrator)) {
+        Show-Error "This script requires administrator privileges. Please run PowerShell as Administrator."
+    }
+    
+    # 设置安装路径
+    if ([string]::IsNullOrEmpty($InstallPath)) {
+        $InstallPath = Get-Location
+    }
+    $InstallPath = [System.IO.Path]::GetFullPath($InstallPath)
+    
+    Show-Info "Service: $ServiceName"
+    Show-Info "Display Name: $DisplayName"
+    Show-Info "Installation Path: $InstallPath"
+    
+    # 处理卸载
+    if ($Uninstall) {
+        $result = Uninstall-Service -Name $ServiceName -Path $InstallPath
+        if ($result) {
+            Show-Success "Uninstallation completed successfully"
+        } else {
+            Show-Error "Uninstallation failed"
+        }
+        return
+    }
+    
+    # 处理服务操作
+    if ($Start -or $Stop -or $Restart -or $Status) {
+        if (-not (Test-ServiceExists -Name $ServiceName)) {
+            Show-Error "Service '$ServiceName' not found"
+        }
+        
+        if ($Status) {
+            $status = Get-ServiceStatus -Name $ServiceName
+            Show-Info "Service '$ServiceName' status: $status"
+            return
+        }
+        
+        if ($Start) {
+            Show-Info "Starting service '$ServiceName'..."
+            try {
+                Start-Service -Name $ServiceName -ErrorAction Stop
+                Show-Success "Service started successfully"
+            } catch {
+                Show-Error "Failed to start service: $_"
+            }
+        }
+        
+        if ($Stop) {
+            Show-Info "Stopping service '$ServiceName'..."
+            try {
+                Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+                Show-Success "Service stopped successfully"
+            } catch {
+                Show-Error "Failed to stop service: $_"
+            }
+        }
+        
+        if ($Restart) {
+            Show-Info "Restarting service '$ServiceName'..."
+            try {
+                Restart-Service -Name $ServiceName -Force -ErrorAction Stop
+                Show-Success "Service restarted successfully"
+            } catch {
+                Show-Error "Failed to restart service: $_"
+            }
+        }
+        
+        return
+    }
+    
+    # 默认操作为安装
+    Show-Info "Starting GADA Windows Service installation..."
+    
+    # 检查服务是否已存在
+    if (Test-ServiceExists -Name $ServiceName) {
+        $currentStatus = Get-ServiceStatus -Name $ServiceName
+        Show-Warning "Service '$ServiceName' already exists (Status: $currentStatus)"
+        
+        $choice = Read-Host "Do you want to reinstall? (Y/N)"
+        if ($choice -notmatch "^[Yy]") {
+            Show-Info "Installation cancelled"
+            return
+        }
+        
+        # 卸载现有服务
+        Uninstall-Service -Name $ServiceName -Path $InstallPath
+    }
+    
+    # 安装服务
+    $result = Install-Service -Name $ServiceName -DisplayName $DisplayName `
+        -Description $Description -Path $InstallPath
+    
+    if ($result) {
+        Show-Success "GADA Windows Service installation completed successfully!"
+        
+        # 显示后续步骤
+        Write-Host ""
+        Write-Host "Next Steps:" -ForegroundColor Cyan
+        Write-Host "1. Service is configured to auto-start on system boot" -ForegroundColor Yellow
+        Write-Host "2. Access the web interface at: http://localhost:3456" -ForegroundColor Yellow
+        Write-Host "3. Check service status: Get-Service '$ServiceName'" -ForegroundColor Yellow
+        Write-Host "4. View logs: Event Viewer -> Windows Logs -> Application" -ForegroundColor Yellow
+        Write-Host ""
+        
+        if ($Start) {
+            Show-Info "Starting service..."
+            try {
+                Start-Service -Name $ServiceName -ErrorAction Stop
+                Show-Success "Service started successfully"
+            } catch {
+                Show-Warning "Failed to start service: $_"
+            }
+        }
+    } else {
+        Show-Error "Installation failed"
+    }
+}
+
+# 运行主程序
+try {
+    Main
+} catch {
+    Show-Error "Script execution failed: $_"
+    exit 1
+}

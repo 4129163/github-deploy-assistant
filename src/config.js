@@ -11,8 +11,11 @@ module.exports = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   HOST: process.env.HOST || '0.0.0.0',
   
-  // 工作目录
-  WORK_DIR: process.env.WORK_DIR || path.join(__dirname, '../workspace'),
+  // 工作目录 - 跨平台兼容，默认改为用户目录下的 gada-workspace
+  WORK_DIR: process.env.WORK_DIR || (() => {
+    const { getWorkspaceDir } = require('./utils/platform-paths');
+    return getWorkspaceDir();
+  })(),
   ALLOW_AUTO_EXEC: process.env.ALLOW_AUTO_EXEC !== 'false',
   
   // 日志配置

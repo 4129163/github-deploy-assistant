@@ -25,7 +25,8 @@ const { RepoAnalyzer } = require('../repo-analyzer');
 const { ProjectDoctor } = require('../project-doctor');
 const { SmartArchive } = require('../smart-archive');
 
-const WORK_DIR = process.env.WORK_DIR || path.join(__dirname, '../../workspace');
+const { getWorkspaceDir } = require('../utils/platform-paths');
+const WORK_DIR = process.env.WORK_DIR || getWorkspaceDir();
 
 // 打印欢迎信息
 function printWelcome() {
