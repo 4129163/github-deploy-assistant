@@ -2092,3 +2092,248 @@ body {
         padding: 4px 8px;
     }
 }
+
+/* 模板市场特定样式增强 */
+.btn-text {
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.btn-text:hover {
+    background: #f3f4f6;
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-title {
+    flex: 1;
+}
+
+.detail-title h2 {
+    font-size: 1.8rem;
+    color: #1f2937;
+    margin: 10px 0 5px 0;
+}
+
+.detail-category {
+    display: inline-block;
+    background: #f3f4f6;
+    color: #6b7280;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+}
+
+.detail-icon {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.detail-section {
+    margin-bottom: 25px;
+}
+
+.detail-section h3 {
+    font-size: 1.1rem;
+    color: #374151;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.detail-section h3 i {
+    color: #6b7280;
+}
+
+.detail-description {
+    color: #4b5563;
+    line-height: 1.6;
+    font-size: 1rem;
+}
+
+.detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.detail-tag {
+    background: #e0e7ff;
+    color: #3730a3;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+}
+
+.detail-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+    background: #f9fafb;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.detail-stats .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.detail-stats .stat-label {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-bottom: 5px;
+}
+
+.detail-stats .stat-value {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.env-vars {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.env-var {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.env-var.optional {
+    border-color: #d1d5db;
+    opacity: 0.8;
+}
+
+.env-key {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    background: #1f2937;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.env-desc {
+    color: #4b5563;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+}
+
+.env-default {
+    color: #059669;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+}
+
+.env-help {
+    color: #6b7280;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+.setup-steps {
+    padding-left: 20px;
+    margin: 0;
+}
+
+.setup-step {
+    margin-bottom: 15px;
+    padding-left: 10px;
+}
+
+.setup-step .step-desc {
+    display: block;
+    color: #4b5563;
+    margin-bottom: 5px;
+}
+
+.setup-step .step-cmd {
+    display: block;
+    background: #f3f4f6;
+    padding: 10px;
+    border-radius: 6px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+    color: #1f2937;
+    overflow-x: auto;
+}
+
+.system-requirements {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.requirement {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 15px;
+    background: #f9fafb;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.req-key {
+    font-weight: 500;
+    color: #374151;
+}
+
+.req-value {
+    color: #6b7280;
+}
+
+.example-code {
+    background: #1f2937;
+    color: #e5e7eb;
+    padding: 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.detail-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 30px;
+}
+
+.detail-footer .btn {
+    min-width: 100px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .detail-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .system-requirements {
+        grid-template-columns: 1fr;
+    }
+}
