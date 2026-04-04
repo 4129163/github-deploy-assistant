@@ -2337,3 +2337,275 @@ body {
         grid-template-columns: 1fr;
     }
 }
+/* ============================================
+   恢复部署面板样式
+   ============================================ */
+
+.resume-deploy-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 400px;
+    max-height: 500px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    transition: all 0.3s ease;
+}
+
+.resume-deploy-panel.collapsed {
+    max-height: 40px;
+}
+
+.resume-deploy-panel.collapsed .panel-content {
+    display: none;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    cursor: pointer;
+}
+
+.panel-header h4 {
+    margin: 0;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.panel-header .badge {
+    margin-left: 8px;
+    font-size: 12px;
+}
+
+.panel-controls {
+    display: flex;
+    gap: 6px;
+}
+
+.panel-controls .btn {
+    padding: 4px 8px;
+    font-size: 12px;
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.panel-controls .btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.panel-content {
+    max-height: 448px;
+    overflow-y: auto;
+}
+
+.resume-list {
+    padding: 16px;
+}
+
+.resume-list .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b7280;
+}
+
+.resume-list .empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: #d1d5db;
+}
+
+.resume-list .empty-state p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.resume-list-item {
+    background: #f9fafb;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 12px;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s ease;
+}
+
+.resume-list-item:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+    transform: translateY(-2px);
+}
+
+.resume-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.resume-item-header strong {
+    font-size: 14px;
+    color: #111827;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.resume-item-header .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+}
+
+.resume-item-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.resume-item-details .detail {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.resume-item-details .detail i {
+    width: 14px;
+    text-align: center;
+}
+
+.resume-item-details .text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.resume-item-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.resume-item-actions .btn {
+    flex: 1;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.resume-item-actions .btn-resume {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+}
+
+.resume-item-actions .btn-resume:hover {
+    opacity: 0.9;
+}
+
+.resume-item-actions .btn-view {
+    border-color: #d1d5db;
+    color: #6b7280;
+}
+
+.resume-item-actions .btn-clear {
+    border-color: #fca5a5;
+    color: #dc2626;
+}
+
+.resume-item-actions .btn-clear:hover {
+    background: #fef2f2;
+}
+
+/* 项目卡片中的恢复按钮 */
+.project-card .resume-deploy-btn {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    border: none;
+    color: white;
+    margin-right: 8px;
+}
+
+.project-card .resume-deploy-btn:hover {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
+
+.project-card .resume-deploy-btn i {
+    margin-right: 4px;
+}
+
+.project-card .resume-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    border: none;
+}
+
+/* 模态框样式 */
+.deployment-details {
+    font-size: 14px;
+}
+
+.deployment-details .table th {
+    width: 120px;
+    font-weight: 600;
+    color: #4b5563;
+    background: #f9fafb;
+}
+
+.deployment-details .table td {
+    color: #111827;
+}
+
+.deployment-details pre {
+    font-size: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .resume-deploy-panel {
+        width: calc(100% - 40px);
+        right: 20px;
+        left: 20px;
+    }
+    
+    .resume-item-actions {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .resume-deploy-panel {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        width: calc(100% - 20px);
+    }
+    
+    .panel-header h4 {
+        font-size: 14px;
+    }
+    
+    .resume-item-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    
+    .resume-item-header .badge {
+        align-self: flex-start;
+    }
+}

@@ -15,6 +15,10 @@ const secureConfigRoutes = require('./src/routes/secure-config');
 const { createDeployErrorCatcher } = require('./src/middleware/deploy-error-catcher');
 const aiRoutes = require('./src/routes/ai');
 
+// 部署恢复功能
+const deployResumeRoutes = require('./src/routes/deploy-resume');
+const { deployCheckpointIntegration } = require('./src/deploy-checkpoint-integration');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -41,6 +45,9 @@ app.use(createDeployErrorCatcher(io));
 
 // AI路由
 app.use('/api/ai', aiRoutes);
+
+// 部署恢复路由
+app.use('/api/deploy', deployResumeRoutes);
 
 // 数据存储
 let projects = [];
@@ -322,40 +329,100 @@ app.post('/api/repo/analyze', (req, res) => {
     res.json({ analysis });
 });
 
-// 部署项目
-app.post('/api/deploy', (req, res) => {
-    const deployData = req.body;
-    
-    if (!deployData.url) {
-        return res.status(400).json({ error: '仓库URL不能为空' });
+// 部署项目（集成检查点功能）
+app.post('/api/deploy', async (req, res) => {
+    try {
+        const deployData = req.body;
+        
+        if (!deployData.url) {
+            return res.status(400).json({ error: '仓库URL不能为空' });
+        }
+        
+        const projectName = deployData.name || deployData.url.split('/').pop().replace('.git', '');
+        
+        // 创建新项目
+        const newProject = {
+            id: uuidv4(),
+            name: projectName,
+            type: deployData.type || 'Node.js',
+            port: deployData.port || 3000,
+            path: deployData.path || `/home/user/projects/${projectName}`,
+            status: 'deploying', // 改为部署中状态
+            lastActive: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+        };
+        
+        projects.push(newProject);
+        
+        // 创建部署检查点
+        const checkpointResult = await deployCheckpointIntegration.startDeploymentWithCheckpoint({
+            id: newProject.id,
+            name: projectName,
+            url: deployData.url,
+            path: newProject.path,
+            type: deployData.type || 'Node.js',
+            port: deployData.port || 3000
+        });
+        
+        if (!checkpointResult.success) {
+            console.warn('创建部署检查点失败:', checkpointResult.error);
+        }
+        
+        // 记录活动
+        addActivity('deploy', projectName, '项目部署开始');
+        
+        // 保存数据
+        saveData();
+        
+        // 发送WebSocket事件
+        if (req.io) {
+            req.io.emit('deploy_started', {
+                projectId: newProject.id,
+                projectName: projectName,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        res.status(201).json({ 
+            project: newProject,
+            checkpoint: checkpointResult.success ? '已创建检查点' : '检查点创建失败',
+            message: '项目部署已开始'
+        });
+    } catch (error) {
+        console.error('部署项目失败:', error);
+        res.status(500).json({ 
+            error: '部署项目失败',
+            message: error.message
+        });
     }
-    
-    const projectName = deployData.name || deployData.url.split('/').pop().replace('.git', '');
-    
-    // 创建新项目
-    const newProject = {
-        id: uuidv4(),
-        name: projectName,
-        type: deployData.type || 'Node.js',
-        port: deployData.port || 3000,
-        path: deployData.path || `/home/user/projects/${projectName}`,
-        status: 'running',
-        lastActive: new Date().toISOString(),
-        createdAt: new Date().toISOString()
-    };
-    
-    projects.push(newProject);
-    
-    // 记录活动
-    addActivity('deploy', projectName, '项目部署成功');
-    
-    // 保存数据
-    saveData();
-    
-    res.status(201).json({ 
-        project: newProject,
-        message: '项目部署成功'
-    });
+});
+
+// 获取部署状态
+app.get('/api/deploy/status/:projectId', async (req, res) => {
+    try {
+        const { projectId } = req.params;
+        
+        // 查找项目
+        const project = projects.find(p => p.id === projectId);
+        if (!project) {
+            return res.status(404).json({ error: '项目不存在' });
+        }
+        
+        // 获取检查点详情
+        const checkpointDetails = await deployCheckpointIntegration.getDeploymentCheckpointDetails(projectId);
+        
+        res.json({
+            project,
+            checkpoint: checkpointDetails.success ? checkpointDetails : null,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('获取部署状态失败:', error);
+        res.status(500).json({ 
+            error: '获取部署状态失败',
+            message: error.message
+        });
+    }
 });
 
 // 获取系统状态
