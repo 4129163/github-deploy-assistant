@@ -57,6 +57,7 @@ async function mainMenu() {
       { name: '📂 查看已管理项目', value: 'projects' },
       { name: '⚙️  配置 AI 模型', value: 'config' },
       { name: '📋 检查系统环境', value: 'env' },
+      { name: '🚀 安装系统服务（开机自启）', value: 'install' },
       { name: '❌ 退出', value: 'exit' }
     ]
   }]);
@@ -85,6 +86,9 @@ async function mainMenu() {
       break;
     case 'env':
       await checkSystemEnv();
+      break;
+    case 'install':
+      await installSystemService();
       break;
     case 'exit':
       console.log(chalk.green('再见！'));
@@ -1003,3 +1007,42 @@ async function smartArchiveMenu() {
     }
   }
 }
+
+
+
+/**
+ * 安装系统服务（支持开机自启和崩溃重启）
+ */
+async function installSystemService() {
+  try {
+    // 加载安装命令模块
+    const InstallCommand = require('./install');
+    const installer = new InstallCommand();
+    
+    // 执行交互式安装
+    const success = await installer.interactiveInstall();
+    
+    if (success) {
+      console.log(chalk.green('\n✅ 系统服务安装完成！'));
+    } else {
+      console.log(chalk.yellow('\n⚠️  安装过程已取消或失败。'));
+    }
+    
+  } catch (error) {
+    console.log(chalk.red('❌ 安装过程中出现错误:'), error.message);
+    console.log(chalk.gray(error.stack));
+  }
+  
+  await mainMenu();
+}
+
+// 启动CLI
+(async () => {
+  try {
+    printWelcome();
+    await mainMenu();
+  } catch (error) {
+    console.error(chalk.red('发生错误:'), error);
+    process.exit(1);
+  }
+})();

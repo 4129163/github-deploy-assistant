@@ -1,0 +1,38 @@
+[Unit]
+Description={{display_name}}
+Documentation=https://gitee.com/kai0339/github-deploy-assistant
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{user}}
+Group={{user}}
+WorkingDirectory={{working_dir}}
+ExecStart={{node_path}} {{main_script}} --service
+Environment="NODE_ENV=production"
+Environment="LOG_LEVEL={{log_level}}"
+Environment="CONFIG_DIR={{config_dir}}"
+Environment="LOG_DIR={{log_dir}}"
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier={{service_name}}
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+# 安全加固
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+NoNewPrivileges=true
+ReadWritePaths={{log_dir}} {{config_dir}}
+ReadOnlyPaths={{working_dir}}
+
+# 资源限制
+MemoryMax={{memory_limit}}
+CPUQuota={{cpu_quota}}%
+
+[Install]
+WantedBy=multi-user.target

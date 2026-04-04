@@ -14,8 +14,10 @@
     "test": "jest --verbose",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "lint": "eslint src/ --ext .js",
-    "lint:fix": "eslint src/ --ext .js --fix",
+    "test:unit": "jest --testPathPattern=__tests__/unit",
+    "test:integration": "jest --testPathPattern=__tests__/integration",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.js\"",
     "security-check": "npm audit",
     "ci": "npm run lint && npm run test && npm run build",
@@ -34,14 +36,24 @@
     "auto-install",
     "ai",
     "openai",
-    "deepseek"
+    "deepseek",
+    "devops",
+    "systemd",
+    "launchd",
+    "windows-service",
+    "service-management",
+    "process-daemon"
   ],
-  "author": "GitHub Deploy Assistant",
+  "author": "kai0339 <19106440339@163.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/4129163/github-deploy-assistant.git"
+    "url": "https://gitee.com/kai0339/github-deploy-assistant.git"
   },
+  "bugs": {
+    "url": "https://gitee.com/kai0339/github-deploy-assistant/issues"
+  },
+  "homepage": "https://gitee.com/kai0339/github-deploy-assistant#readme",
   "engines": {
     "node": ">=18.0.0"
   },
@@ -51,7 +63,9 @@
     "body-parser": "^1.20.2",
     "boxen": "^5.1.2",
     "chalk": "^4.1.2",
+    "commander": "^9.4.1",
     "cors": "^2.8.5",
+    "debug": "^4.3.4",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "extract-zip": "^2.0.1",
@@ -64,8 +78,11 @@
     "simple-git": "^3.21.0",
     "socket.io": "^4.8.3",
     "sqlite3": "^6.0.1",
+    "sudo-prompt": "^9.2.1",
     "tcp-port-used": "^1.0.2",
     "uuid": "^9.0.1",
+    "which": "^3.0.0",
+    "winston": "^3.8.2",
     "ws": "^8.16.0"
   },
   "devDependencies": {
