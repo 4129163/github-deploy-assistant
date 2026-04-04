@@ -100,7 +100,7 @@ class LogEntry {
 }
 
 /**
- * 日志轮转和清理
+ * 日志轮转和清理（向后兼容）
  */
 class LogRotator {
   constructor() {
@@ -165,6 +165,21 @@ class LogRotator {
 }
 
 const rotator = new LogRotator();
+
+// 尝试加载增强版轮转器
+let enhancedRotator = null;
+try {
+  const { createLogRotator } = require('./log-rotator-enhanced');
+  createLogRotator().then(rotator => {
+    enhancedRotator = rotator;
+    logger.info('Enhanced log rotator initialized successfully');
+  }).catch(error => {
+    logger.warn('Failed to initialize enhanced log rotator, using basic one:', error.message);
+  });
+} catch (error) {
+  // 增强版轮转器不可用，使用基础版
+  logger.debug('Enhanced log rotator not available, using basic rotation');
+}
 
 /**
  * 远程日志发送
@@ -237,7 +252,16 @@ function writeLog(level, message, meta = {}) {
   }
 
   // 触发轮转检查
-  rotator.rotateLogs();
+  if (enhancedRotator) {
+    // 使用增强版轮转器的异步检查
+    enhancedRotator.checkAndRotate().catch(() => {
+      // 如果增强版失败，回退到基础版
+      rotator.rotateLogs();
+    });
+  } else {
+    // 使用基础版轮转
+    rotator.rotateLogs();
+  }
 }
 
 /**

@@ -7,6 +7,9 @@ const router = express.Router();
 const { ConfigDB } = require('../services/database');
 const { logger } = require('../utils/logger');
 
+// 导入审计日志功能
+const { auditLogEnhanced, AUDIT_ACTION_TYPES } = require('../services/audit-log-enhanced');
+
 /**
  * 获取配置
  * GET /api/config/:key
@@ -36,9 +39,24 @@ router.get('/:key', async (req, res) => {
  * POST /api/config/:key
  */
 router.post('/:key', async (req, res) => {
+  const startTime = Date.now();
+  let oldValue = null;
+  let isSensitive = false;
+  
   try {
     const { key } = req.params;
     const { value } = req.body;
+    
+    // 检查是否为敏感配置
+    const SENSITIVE_KEYS = ['api_key', 'token', 'secret', 'password', 'credential', 'auth'];
+    isSensitive = SENSITIVE_KEYS.some(s => key.toLowerCase().includes(s));
+    
+    // 获取旧值（用于审计日志）
+    try {
+      oldValue = await ConfigDB.get(key);
+    } catch (_) {
+      oldValue = null;
+    }
     
     await ConfigDB.set(key, value);
     
@@ -50,6 +68,25 @@ router.post('/:key', async (req, res) => {
   } catch (error) {
     logger.error('Set config error:', error);
     res.status(500).json({ error: error.message });
+    
+  } finally {
+    // 记录审计日志
+    const duration = Date.now() - startTime;
+    const success = res.statusCode < 400;
+    
+    auditLogEnhanced(AUDIT_ACTION_TYPES.CONFIG_UPDATE, {
+      config_key: req.params.key,
+      config_value: isSensitive ? '[REDACTED]' : (typeof req.body?.value === 'string' ? req.body.value : '[object]'),
+      old_value: isSensitive ? '[REDACTED]' : oldValue,
+      is_sensitive: isSensitive,
+      success,
+      duration_ms: duration,
+      status_code: res.statusCode,
+      client_ip: req.ip,
+      user_agent: req.get('User-Agent')
+    }).catch(err => {
+      logger.warn('Failed to record audit log for config update:', err.message);
+    });
   }
 });
 

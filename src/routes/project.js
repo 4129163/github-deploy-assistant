@@ -11,6 +11,9 @@ const { logger } = require('../utils/logger');
 const { stopProject, getProcessStatus } = require('../services/process-manager');
 const { WORK_DIR } = require('../config');
 
+// 导入审计日志功能
+const { auditLogEnhanced, AUDIT_ACTION_TYPES } = require('../services/audit-log-enhanced');
+
 /**
  * 获取所有项目
  * GET /api/project/list
@@ -87,11 +90,18 @@ router.get('/:id/uninstall-preview', async (req, res) => {
  * body: { keepBackups?: boolean, keepData?: boolean }
  */
 router.delete('/:id/uninstall', async (req, res) => {
+  const startTime = Date.now();
+  let project = null;
+  let keepBackups = false;
+  let keepData = false;
+  
   try {
     const { id } = req.params;
-    const { keepBackups = false, keepData = false } = req.body || {};
+    const options = req.body || {};
+    keepBackups = options.keepBackups || false;
+    keepData = options.keepData || false;
 
-    const project = await ProjectDB.getById(id);
+    project = await ProjectDB.getById(id);
     if (!project) return res.status(404).json({ error: 'Project not found' });
 
     logger.info(`Uninstalling project: ${project.name}`);
@@ -147,15 +157,40 @@ router.delete('/:id/uninstall', async (req, res) => {
     }
 
     logger.info(`Project ${project.name} uninstalled successfully`);
-    res.json({
+    
+    const response = {
       success: true,
       message: `项目 "${project.name}" 已卸载`,
       data: { results }
-    });
+    };
+    
+    res.json(response);
 
   } catch (error) {
     logger.error('Uninstall error:', error);
     res.status(500).json({ error: error.message });
+    
+  } finally {
+    // 记录审计日志
+    const duration = Date.now() - startTime;
+    const success = res.statusCode < 400;
+    
+    if (project) {
+      auditLogEnhanced(AUDIT_ACTION_TYPES.PROJECT_DELETE, {
+        project_id: project.id,
+        project_name: project.name,
+        project_path: project.local_path,
+        keep_backups: keepBackups,
+        keep_data: keepData,
+        success,
+        duration_ms: duration,
+        status_code: res.statusCode,
+        client_ip: req.ip,
+        user_agent: req.get('User-Agent')
+      }).catch(err => {
+        logger.warn('Failed to record audit log for project uninstall:', err.message);
+      });
+    }
   }
 });
 
@@ -164,11 +199,43 @@ router.delete('/:id/uninstall', async (req, res) => {
  * DELETE /api/project/:id
  */
 router.delete('/:id', async (req, res) => {
+  const startTime = Date.now();
+  let project = null;
+  
   try {
-    await ProjectDB.delete(req.params.id);
+    const { id } = req.params;
+    project = await ProjectDB.getById(id);
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    await ProjectDB.delete(id);
     res.json({ success: true, message: 'Project deleted' });
+    
   } catch (error) {
     res.status(500).json({ error: error.message });
+    
+  } finally {
+    // 记录审计日志
+    const duration = Date.now() - startTime;
+    const success = res.statusCode < 400;
+    
+    if (project) {
+      auditLogEnhanced(AUDIT_ACTION_TYPES.PROJECT_DELETE, {
+        project_id: project.id,
+        project_name: project.name,
+        project_path: project.local_path,
+        delete_type: 'database_only',
+        success,
+        duration_ms: duration,
+        status_code: res.statusCode,
+        client_ip: req.ip,
+        user_agent: req.get('User-Agent')
+      }).catch(err => {
+        logger.warn('Failed to record audit log for project delete:', err.message);
+      });
+    }
   }
 });
 

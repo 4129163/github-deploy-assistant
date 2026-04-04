@@ -16,6 +16,9 @@ const { addHost, listHosts, removeHost, testConnection, remoteDeployProject, rem
 const { ProjectDB, DeployLogDB } = require('../services/database');
 const { logger } = require('../utils/logger');
 
+// 导入审计日志功能
+const { auditLogEnhanced, AUDIT_ACTION_TYPES } = require('../services/audit-log-enhanced');
+
 /**
  * 添加远程主机
  */
@@ -77,21 +80,26 @@ router.post('/hosts/:hostId/test', async (req, res) => {
  * body: { hostId }
  */
 router.post('/deploy/:projectId', async (req, res) => {
+  const startTime = Date.now();
+  let project = null;
+  let result = null;
+  let logs = [];
+  
   try {
     const { projectId } = req.params;
     const { hostId } = req.body;
     if (!hostId) return res.status(400).json({ error: '缺少 hostId' });
 
-    const project = await ProjectDB.getById(projectId);
+    project = await ProjectDB.getById(projectId);
     if (!project) return res.status(404).json({ error: '项目不存在' });
 
-    const logs = [];
+    logs = [];
     const onLog = (msg) => {
       logs.push(msg);
       if (global.broadcastLog) global.broadcastLog(String(projectId), msg);
     };
 
-    const result = await remoteDeployProject(project, hostId, onLog);
+    result = await remoteDeployProject(project, hostId, onLog);
 
     // 记录部署日志
     await DeployLogDB.create({
@@ -110,6 +118,28 @@ router.post('/deploy/:projectId', async (req, res) => {
   } catch (err) {
     logger.error('Remote deploy error:', err);
     res.status(500).json({ error: err.message });
+    
+  } finally {
+    // 记录审计日志
+    const duration = Date.now() - startTime;
+    const success = res.statusCode < 400 && result?.success !== false;
+    
+    if (project) {
+      auditLogEnhanced(AUDIT_ACTION_TYPES.REMOTE_DEPLOY, {
+        project_id: project.id,
+        project_name: project.name,
+        host_id: req.body?.hostId,
+        deployment_type: 'remote',
+        success,
+        duration_ms: duration,
+        status_code: res.statusCode,
+        client_ip: req.ip,
+        user_agent: req.get('User-Agent'),
+        log_count: logs?.length || 0
+      }).catch(err => {
+        logger.warn('Failed to record audit log for remote deploy:', err.message);
+      });
+    }
   }
 });
 

@@ -88,6 +88,13 @@ module.exports = {
   SMTP_PASS: process.env.SMTP_PASS || '',
   NOTIFICATION_EMAIL: process.env.NOTIFICATION_EMAIL || '',
   
+  // 审计日志配置
+  AUDIT_LOG_ENABLED: process.env.AUDIT_LOG_ENABLED !== 'false',
+  AUDIT_LOG_RETENTION_DAYS: parseInt(process.env.AUDIT_LOG_RETENTION_DAYS, 10) || 90,
+  AUDIT_LOG_MAX_SIZE_MB: parseInt(process.env.AUDIT_LOG_MAX_SIZE_MB, 10) || 50,
+  AUDIT_LOG_COMPRESSION: process.env.AUDIT_LOG_COMPRESSION === 'true',
+  AUDIT_LOG_ENCRYPTION: process.env.AUDIT_LOG_ENCRYPTION === 'true',
+  
   // 调试配置
   DEBUG_SQL: process.env.DEBUG_SQL === 'true',
   DEBUG_API: process.env.DEBUG_API === 'true',
