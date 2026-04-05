@@ -52,6 +52,9 @@ const elements = {
     diagnoseBtn: document.getElementById('diagnose-btn'),
     deleteBtn: document.getElementById('delete-btn'),
     
+    // 诊断包导出按钮
+    exportDiagnosticBtn: document.getElementById('export-diagnostic-btn'),
+    
     // 更多选项按钮
     healthCheckBtn: document.getElementById('health-check-btn'),
     metricsBtn: document.getElementById('metrics-btn'),
@@ -391,6 +394,13 @@ function bindEvents() {
             if (currentProject) {
                 handleProjectAction(currentProject.id, 'backup');
             }
+        });
+    }
+    
+    // 诊断包导出按钮
+    if (elements.exportDiagnosticBtn) {
+        elements.exportDiagnosticBtn.addEventListener('click', () => {
+            showDiagnosticExportModal();
         });
     }
     
@@ -902,6 +912,162 @@ function showMonitoringDashboard() {
 function showTemplateMarket() {
     // 实现显示模板市场
     console.log('显示模板市场');
+}
+
+// 显示诊断包导出模态框
+function showDiagnosticExportModal() {
+    // 设置当前项目ID（如果存在）
+    const projectId = currentProject ? currentProject.id : 'system';
+    document.getElementById('diagnostic-project-id').value = projectId;
+    
+    // 重置表单
+    document.getElementById('include-logs').checked = true;
+    document.getElementById('include-config').checked = true;
+    document.getElementById('include-env').checked = true;
+    document.getElementById('include-errors').checked = true;
+    document.getElementById('diagnostic-days').value = 7;
+    
+    // 隐藏进度和结果
+    document.getElementById('diagnostic-progress').style.display = 'none';
+    document.getElementById('diagnostic-result').style.display = 'none';
+    document.getElementById('diagnostic-download-link').style.display = 'none';
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('diagnostic-export-modal'));
+    modal.show();
+    
+    // 绑定导出按钮事件
+    const exportBtn = document.getElementById('diagnostic-export-start');
+    exportBtn.onclick = startDiagnosticExport;
+}
+
+// 开始导出诊断包
+async function startDiagnosticExport() {
+    const exportBtn = document.getElementById('diagnostic-export-start');
+    const cancelBtn = document.querySelector('#diagnostic-export-modal .btn-secondary');
+    const progressBar = document.querySelector('#diagnostic-progress .progress-bar');
+    const progressContainer = document.getElementById('diagnostic-progress');
+    const resultContainer = document.getElementById('diagnostic-result');
+    const downloadLink = document.getElementById('diagnostic-download-link');
+    
+    // 获取表单数据
+    const projectId = document.getElementById('diagnostic-project-id').value;
+    const includeLogs = document.getElementById('include-logs').checked;
+    const includeConfig = document.getElementById('include-config').checked;
+    const includeEnv = document.getElementById('include-env').checked;
+    const includeErrors = document.getElementById('include-errors').checked;
+    const days = parseInt(document.getElementById('diagnostic-days').value) || 7;
+    
+    // 验证数据
+    if (days < 1 || days > 30) {
+        showDiagnosticError('日志天数必须在1-30之间');
+        return;
+    }
+    
+    // 禁用按钮，显示进度
+    exportBtn.disabled = true;
+    cancelBtn.disabled = true;
+    progressContainer.style.display = 'block';
+    progressBar.style.width = '30%';
+    progressBar.textContent = '正在准备...';
+    
+    try {
+        // 准备请求数据
+        const requestData = {
+            projectId,
+            includeLogs,
+            includeConfig,
+            includeEnv,
+            includeErrors,
+            days
+        };
+        
+        // 更新进度
+        progressBar.style.width = '50%';
+        progressBar.textContent = '正在创建诊断包...';
+        
+        // 发送创建请求
+        const response = await fetch('/api/diagnostic/export', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP错误: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            throw new Error(result.error || '导出失败');
+        }
+        
+        // 更新进度
+        progressBar.style.width = '80%';
+        progressBar.textContent = '正在准备下载...';
+        
+        // 显示成功消息
+        const downloadUrl = result.data.downloadUrl;
+        const filename = result.data.filename;
+        const size = formatFileSize(result.data.size);
+        
+        resultContainer.style.display = 'block';
+        resultContainer.innerHTML = `
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle"></i>
+                <strong>诊断包创建成功！</strong><br>
+                <small>文件名: ${filename}<br>
+                大小: ${size}<br>
+                创建时间: ${new Date(result.data.createdAt).toLocaleString()}</small>
+            </div>
+        `;
+        
+        // 设置下载链接
+        downloadLink.href = downloadUrl;
+        downloadLink.download = filename;
+        downloadLink.style.display = 'inline-block';
+        
+        // 更新进度
+        progressBar.style.width = '100%';
+        progressBar.textContent = '完成！';
+        
+        // 启用取消按钮
+        cancelBtn.disabled = false;
+        
+    } catch (error) {
+        console.error('诊断包导出失败:', error);
+        showDiagnosticError(`导出失败: ${error.message}`);
+        
+        // 重置UI
+        exportBtn.disabled = false;
+        cancelBtn.disabled = false;
+        progressContainer.style.display = 'none';
+    }
+}
+
+// 显示诊断错误
+function showDiagnosticError(message) {
+    const resultContainer = document.getElementById('diagnostic-result');
+    resultContainer.style.display = 'block';
+    resultContainer.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>错误！</strong><br>
+            ${message}
+        </div>
+    `;
+}
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 // 导出初始化函数

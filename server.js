@@ -22,6 +22,9 @@ const { deployCheckpointIntegration } = require('./src/deploy-checkpoint-integra
 // 浏览器扩展功能
 const browserRoutes = require('./src/routes/browser');
 
+// 诊断包导出功能
+const diagnosticExportRoutes = require('./src/routes/diagnostic-export');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -80,6 +83,9 @@ app.use('/api/deploy', deployResumeRoutes);
 
 // 浏览器扩展路由
 app.use('/api/browser', browserRoutes);
+
+// 诊断包导出路由
+app.use('/api/diagnostic', diagnosticExportRoutes);
 
 // 数据存储
 let projects = [];
