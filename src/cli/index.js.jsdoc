@@ -1,0 +1,199 @@
+/**
+ * @file GitHub Deploy Assistant (GADA) - 命令行界面主文件
+ * @module cli/index
+ * @description 提供智能项目部署助手的命令行交互界面
+ * @version 2.0.0-i18n
+ * @license MIT
+ * @author GitHub Deploy Assistant Team
+ * @see {@link https://gitee.com/kai0339/github-deploy-assistant|项目仓库}
+ */
+
+/**
+ * 命令行界面配置选项
+ * @typedef {Object} CliOptions
+ * @property {boolean} [interactive=true] - 是否启用交互模式
+ * @property {string} [logLevel='info'] - 日志级别
+ * @property {string} [workDir] - 工作目录路径
+ * @property {boolean} [skipWelcome=false] - 是否跳过欢迎信息
+ */
+
+/**
+ * 项目分析配置
+ * @typedef {Object} ProjectAnalysisConfig
+ * @property {string} repoUrl - 仓库URL
+ * @property {string} [branch='main'] - 分支名称
+ * @property {boolean} [deepAnalysis=false] - 是否进行深度分析
+ * @property {string[]} [analysisTypes] - 分析类型数组
+ */
+
+/**
+ * 部署配置
+ * @typedef {Object} DeploymentConfig
+ * @property {string} projectId - 项目ID
+ * @property {string} environment - 部署环境
+ * @property {boolean} [autoDeploy=true] - 是否自动部署
+ * @property {Object} [variables] - 环境变量
+ */
+
+/**
+ * AI模型配置
+ * @typedef {Object} AIConfig
+ * @property {string} provider - AI提供商
+ * @property {string} model - 模型名称
+ * @property {string} apiKey - API密钥
+ * @property {number} [temperature=0.7] - 温度参数
+ */
+
+// 主函数已经有一些文档，但让我为关键函数添加详细注释
+
+/**
+ * 打印欢迎信息
+ * @function printWelcome
+ * @description 显示应用程序的欢迎界面和版本信息
+ * @returns {void}
+ * @example
+ * printWelcome();
+ */
+function printWelcome() {
+  // 实现...
+}
+
+/**
+ * 显示主菜单并处理用户选择
+ * @async
+ * @function mainMenu
+ * @description 提供交互式主菜单，引导用户选择不同功能
+ * @returns {Promise<void>}
+ * @throws {Error} 当菜单选择处理失败时抛出错误
+ * @example
+ * await mainMenu();
+ */
+async function mainMenu() {
+  // 实现...
+}
+
+/**
+ * 分析并部署新项目
+ * @async
+ * @function analyzeNewProject
+ * @description 引导用户输入仓库URL，分析项目结构并生成部署方案
+ * @returns {Promise<void>}
+ * @throws {Error} 当仓库分析或部署失败时抛出错误
+ * @example
+ * await analyzeNewProject();
+ */
+async function analyzeNewProject() {
+  // 实现...
+}
+
+/**
+ * 上传本地仓库到托管平台
+ * @async
+ * @function uploadLocalRepo
+ * @description 将本地代码仓库上传到GitHub、Gitee等托管平台
+ * @returns {Promise<void>}
+ * @throws {Error} 当上传过程失败时抛出错误
+ * @example
+ * await uploadLocalRepo();
+ */
+async function uploadLocalRepo() {
+  // 实现...
+}
+
+/**
+ * 深度分析仓库
+ * @async
+ * @function analyzeRepoDeeply
+ * @description 对仓库进行深度分析，包括代码质量、依赖关系、安全问题等
+ * @returns {Promise<void>}
+ * @throws {Error} 当分析过程失败时抛出错误
+ * @example
+ * await analyzeRepoDeeply();
+ */
+async function analyzeRepoDeeply() {
+  // 实现...
+}
+
+/**
+ * 项目医生功能菜单
+ * @async
+ * @function projectDoctorMenu
+ * @description 提供项目诊断、自动修复和配置对话功能
+ * @returns {Promise<void>}
+ * @throws {Error} 当诊断或修复过程失败时抛出错误
+ * @example
+ * await projectDoctorMenu();
+ */
+async function projectDoctorMenu() {
+  // 实现...
+}
+
+/**
+ * 智能存档菜单
+ * @async
+ * @function smartArchiveMenu
+ * @description 提供项目存档、版本管理和回档功能
+ * @returns {Promise<void>}
+ * @throws {Error} 当存档或回档过程失败时抛出错误
+ * @example
+ * await smartArchiveMenu();
+ */
+async function smartArchiveMenu() {
+  // 实现...
+}
+
+/**
+ * 查看已管理项目
+ * @async
+ * @function viewProjects
+ * @description 显示所有已管理的项目列表和状态
+ * @returns {Promise<void>}
+ * @throws {Error} 当项目数据加载失败时抛出错误
+ * @example
+ * await viewProjects();
+ */
+async function viewProjects() {
+  // 实现...
+}
+
+/**
+ * 配置AI模型
+ * @async
+ * @function configAI
+ * @description 配置AI模型参数和提供商设置
+ * @returns {Promise<void>}
+ * @throws {Error} 当配置保存失败时抛出错误
+ * @example
+ * await configAI();
+ */
+async function configAI() {
+  // 实现...
+}
+
+/**
+ * 检查系统环境
+ * @async
+ * @function checkSystemEnv
+ * @description 检查系统环境是否符合部署要求
+ * @returns {Promise<void>}
+ * @throws {Error} 当环境检查失败时抛出错误
+ * @example
+ * await checkSystemEnv();
+ */
+async function checkSystemEnv() {
+  // 实现...
+}
+
+/**
+ * 安装系统服务
+ * @async
+ * @function installSystemService
+ * @description 安装系统服务实现开机自启
+ * @returns {Promise<void>}
+ * @throws {Error} 当服务安装失败时抛出错误
+ * @example
+ * await installSystemService();
+ */
+async function installSystemService() {
+  // 实现...
+}

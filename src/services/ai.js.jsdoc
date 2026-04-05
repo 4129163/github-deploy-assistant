@@ -1,0 +1,277 @@
+/**
+ * @file AI 服务模块
+ * @module services/ai
+ * @description 提供多模型AI服务支持，包括自定义提供商配置
+ * @version 2.0.0-i18n
+ * @license MIT
+ */
+
+/**
+ * AI提供商配置接口
+ * @typedef {Object} AIProviderConfig
+ * @property {string} name - 提供商名称
+ * @property {string} baseURL - API基础URL
+ * @property {string} apiKey - API密钥
+ * @property {string[]} models - 支持的模型列表
+ * @property {string} defaultModel - 默认模型
+ * @property {boolean} builtin - 是否为内置提供商
+ */
+
+/**
+ * AI请求配置
+ * @typedef {Object} AIRequestConfig
+ * @property {string} provider - 提供商名称
+ * @property {string} [model] - 模型名称
+ * @property {string} prompt - 提示词
+ * @property {number} [temperature=0.7] - 温度参数
+ * @property {number} [maxTokens=2000] - 最大令牌数
+ * @property {Object} [systemPrompt] - 系统提示
+ * @property {boolean} [stream=false] - 是否流式响应
+ */
+
+/**
+ * AI响应结果
+ * @typedef {Object} AIResponse
+ * @property {boolean} success - 是否成功
+ * @property {string} content - AI生成的内容
+ * @property {string} [error] - 错误信息
+ * @property {Object} [metadata] - 元数据
+ * @property {number} [tokens] - 使用的令牌数
+ * @property {number} [latency] - 响应延迟(ms)
+ */
+
+/**
+ * 项目分析结果
+ * @typedef {Object} ProjectAnalysisResult
+ * @property {string} projectType - 项目类型
+ * @property {string} language - 主要语言
+ * @property {string} framework - 框架
+ * @property {Object} dependencies - 依赖分析
+ * @property {Object} structure - 项目结构
+ * @property {string[]} issues - 发现的问题
+ * @property {string[]} recommendations - 建议
+ * @property {Object} deploymentConfig - 部署配置
+ */
+
+/**
+ * 部署脚本生成结果
+ * @typedef {Object} DeploymentScriptResult
+ * @property {string} script - 部署脚本内容
+ * @property {Object} config - 配置信息
+ * @property {string[]} prerequisites - 先决条件
+ * @property {Object} environment - 环境变量
+ * @property {string[]} commands - 命令列表
+ */
+
+// 内置AI提供商配置
+const BUILTIN_PROVIDERS = {
+  // OpenAI 配置
+  openai: {
+    name: 'OpenAI',
+    baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    apiKey: process.env.OPENAI_API_KEY,
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo'],
+    defaultModel: process.env.OPENAI_MODEL || 'gpt-4o',
+    builtin: true
+  },
+  // 其他提供商配置...
+};
+
+/**
+ * 获取所有可用的AI提供商
+ * @function getAllProviders
+ * @description 返回合并后的内置和自定义提供商配置
+ * @returns {Object.<string, AIProviderConfig>} 提供商配置对象
+ * @example
+ * const providers = getAllProviders();
+ * console.log(providers.openai.name); // "OpenAI"
+ */
+function getAllProviders() {
+  return { ...BUILTIN_PROVIDERS, ...customProviders };
+}
+
+/**
+ * 从数据库加载自定义提供商配置
+ * @async
+ * @function loadCustomProviders
+ * @description 从持久化存储加载自定义AI提供商配置
+ * @returns {Promise<void>}
+ * @throws {Error} 当数据库读取或解析失败时抛出错误
+ * @example
+ * await loadCustomProviders();
+ */
+async function loadCustomProviders() {
+  // 实现...
+}
+
+/**
+ * 保存自定义提供商配置到数据库
+ * @async
+ * @function saveCustomProviders
+ * @description 将自定义AI提供商配置保存到持久化存储
+ * @returns {Promise<void>}
+ * @throws {Error} 当数据库写入失败时抛出错误
+ * @example
+ * await saveCustomProviders();
+ */
+async function saveCustomProviders() {
+  // 实现...
+}
+
+/**
+ * 添加自定义AI提供商
+ * @async
+ * @function addCustomProvider
+ * @description 添加新的自定义AI提供商配置
+ * @param {string} id - 提供商ID
+ * @param {AIProviderConfig} config - 提供商配置
+ * @returns {Promise<boolean>} 是否添加成功
+ * @throws {Error} 当配置无效或保存失败时抛出错误
+ * @example
+ * await addCustomProvider('my-provider', {
+ *   name: 'My Provider',
+ *   baseURL: 'https://api.example.com/v1',
+ *   apiKey: 'sk-...',
+ *   models: ['my-model'],
+ *   defaultModel: 'my-model',
+ *   builtin: false
+ * });
+ */
+async function addCustomProvider(id, config) {
+  // 实现...
+}
+
+/**
+ * 调用AI服务生成响应
+ * @async
+ * @function callAI
+ * @description 调用配置的AI提供商生成文本响应
+ * @param {AIRequestConfig} config - AI请求配置
+ * @returns {Promise<AIResponse>} AI响应结果
+ * @throws {Error} 当API调用失败或提供商不存在时抛出错误
+ * @example
+ * const response = await callAI({
+ *   provider: 'openai',
+ *   model: 'gpt-4o',
+ *   prompt: 'Hello, how are you?',
+ *   temperature: 0.7
+ * });
+ */
+async function callAI(config) {
+  // 实现...
+}
+
+/**
+ * 分析GitHub仓库
+ * @async
+ * @function analyzeRepo
+ * @description 分析GitHub仓库结构并生成项目分析报告
+ * @param {string} repoUrl - 仓库URL
+ * @param {Object} [options] - 分析选项
+ * @param {boolean} [options.deepAnalysis=false] - 是否深度分析
+ * @param {string[]} [options.analysisTypes] - 分析类型数组
+ * @returns {Promise<ProjectAnalysisResult>} 项目分析结果
+ * @throws {Error} 当仓库分析失败时抛出错误
+ * @example
+ * const analysis = await analyzeRepo('https://github.com/user/repo', {
+ *   deepAnalysis: true,
+ *   analysisTypes: ['structure', 'dependencies', 'security']
+ * });
+ */
+async function analyzeRepo(repoUrl, options) {
+  // 实现...
+}
+
+/**
+ * 生成部署脚本
+ * @async
+ * @function generateDeployScript
+ * @description 根据项目分析结果生成部署脚本
+ * @param {ProjectAnalysisResult} analysis - 项目分析结果
+ * @param {Object} [environment] - 环境配置
+ * @returns {Promise<DeploymentScriptResult>} 部署脚本结果
+ * @throws {Error} 当脚本生成失败时抛出错误
+ * @example
+ * const script = await generateDeployScript(analysis, {
+ *   os: 'linux',
+ *   packageManager: 'npm',
+ *   deploymentType: 'docker'
+ * });
+ */
+async function generateDeployScript(analysis, environment) {
+  // 实现...
+}
+
+/**
+ * 回答用户关于项目的问题
+ * @async
+ * @function answerQuestion
+ * @description 使用AI回答用户关于项目的特定问题
+ * @param {string} question - 用户问题
+ * @param {ProjectAnalysisResult} analysis - 项目分析结果
+ * @param {Object} [context] - 上下文信息
+ * @returns {Promise<string>} AI生成的回答
+ * @throws {Error} 当AI响应失败时抛出错误
+ * @example
+ * const answer = await answerQuestion(
+ *   '如何部署这个项目？',
+ *   analysis,
+ *   { deploymentType: 'docker' }
+ * );
+ */
+async function answerQuestion(question, analysis, context) {
+  // 实现...
+}
+
+/**
+ * 获取可用的部署提供商
+ * @async
+ * @function getAvailableProviders
+ * @description 获取当前可用的部署服务提供商列表
+ * @param {string} [projectType] - 项目类型筛选
+ * @returns {Promise<string[]>} 提供商名称数组
+ * @throws {Error} 当提供商列表获取失败时抛出错误
+ * @example
+ * const providers = await getAvailableProviders('nodejs');
+ * // ['docker', 'pm2', 'systemd', 'kubernetes']
+ */
+async function getAvailableProviders(projectType) {
+  // 实现...
+}
+
+/**
+ * 验证AI提供商配置
+ * @function validateProviderConfig
+ * @description 验证AI提供商配置是否有效
+ * @param {AIProviderConfig} config - 提供商配置
+ * @returns {Object} 验证结果
+ * @property {boolean} valid - 是否有效
+ * @property {string[]} errors - 错误信息数组
+ * @property {string[]} warnings - 警告信息数组
+ * @example
+ * const result = validateProviderConfig(config);
+ * if (!result.valid) {
+ *   console.error('配置无效:', result.errors);
+ * }
+ */
+function validateProviderConfig(config) {
+  // 实现...
+}
+
+/**
+ * 测试AI提供商连接
+ * @async
+ * @function testProviderConnection
+ * @description 测试AI提供商连接是否正常
+ * @param {string} providerId - 提供商ID
+ * @returns {Promise<Object>} 连接测试结果
+ * @property {boolean} connected - 是否连接成功
+ * @property {number} latency - 连接延迟(ms)
+ * @property {string} [error] - 错误信息
+ * @example
+ * const result = await testProviderConnection('openai');
+ * console.log(`连接${result.connected ? '成功' : '失败'}, 延迟: ${result.latency}ms`);
+ */
+async function testProviderConnection(providerId) {
+  // 实现...
+}

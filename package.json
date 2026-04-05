@@ -38,7 +38,13 @@
     "secure:test": "node test-secure-storage.js",
     "secure:status": "node -e \"const storage = require('./src/utils/secure-storage'); console.log('安全存储状态:', storage.isInitialized() ? '已初始化' : '未初始化');\"",
     "secure:backup": "node -e \"const storage = require('./src/utils/secure-storage'); (async () => { const backupFile = await storage.backup('./secure-backup.json', process.env.MASTER_PASSWORD); console.log('备份完成:', backupFile); })();\"",
-    "secure:health": "curl -s http://localhost:3000/api/health | jq . || curl -s http://localhost:3000/api/health"
+    "secure:health": "curl -s http://localhost:3000/api/health | jq . || curl -s http://localhost:3000/api/health",
+    "type-check": "node scripts/type-check.js",
+    "type-check:report": "node scripts/type-check.js --report",
+    "type-check:jsdoc": "node scripts/type-check.js --jsdoc",
+    "type-check:ci": "npm run type-check && npm run lint",
+    "types": "tsc --noEmit --project tsconfig.json",
+    "types:watch": "tsc --noEmit --project tsconfig.json --watch"
   },
   "keywords": [
     "github",

@@ -8,6 +8,12 @@ const { v4: uuidv4 } = require('uuid');
 const http = require('http');
 const socketIo = require('socket.io');
 
+// 统一错误处理
+const { createUnifiedErrorHandler, createNotFoundHandler, setupGlobalErrorHandlers } = require('./src/middleware/unified-error-handler');
+
+// 高级性能监控
+const { getHttpMiddleware: getAdvancedPerformanceMiddleware } = require('./src/utils/advanced-performance-monitor');
+
 // 安全存储路由
 const secureConfigRoutes = require('./src/routes/secure-config');
 
@@ -65,6 +71,9 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static('public'));
+
+// 高级性能监控中间件 - 必须在最前面
+app.use(getAdvancedPerformanceMiddleware());
 
 // Socket.io 中间件 - 使 io 实例在路由中可用
 app.use((req, res, next) => {
@@ -490,6 +499,41 @@ app.get('/api/system/status', (req, res) => {
     res.json(status);
 });
 
+// 获取高级性能指标
+app.get('/api/system/performance', (req, res) => {
+    try {
+        const { getAdvancedReport } = require('./src/utils/advanced-performance-monitor');
+        const report = getAdvancedReport();
+        
+        res.json({
+            success: true,
+            data: report,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('获取性能指标失败:', error);
+        res.status(500).json({
+            success: false,
+            error: '获取性能指标失败',
+            message: error.message
+        });
+    }
+});
+
+// Prometheus指标导出
+app.get('/metrics', (req, res) => {
+    try {
+        const { exportPrometheusMetrics } = require('./src/utils/advanced-performance-monitor');
+        const metrics = exportPrometheusMetrics();
+        
+        res.set('Content-Type', 'text/plain; version=0.0.4');
+        res.send(metrics);
+    } catch (error) {
+        console.error('导出Prometheus指标失败:', error);
+        res.status(500).send('# ERROR: Failed to export metrics\n');
+    }
+});
+
 // 获取最近活动
 app.get('/api/activities/recent', (req, res) => {
     const recentActivities = activities
@@ -718,6 +762,16 @@ function generateLogs(count) {
     return logs;
 }
 
+// 404 处理器 - 必须在所有路由之后
+app.use(createNotFoundHandler());
+
+// 统一错误处理中间件 - 必须是最后一个中间件
+app.use(createUnifiedErrorHandler({
+  logErrors: true,
+  trackMetrics: process.env.NODE_ENV === 'production',
+  includeStack: process.env.NODE_ENV === 'development'
+}));
+
 // 处理所有其他路由，返回前端应用
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -749,6 +803,9 @@ function setupSocketIO() {
 }
 
 async function startServer() {
+    // 设置全局错误处理器
+    setupGlobalErrorHandlers();
+    
     await initializeData();
     
     // 设置Socket.io
