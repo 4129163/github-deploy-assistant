@@ -1,0 +1,244 @@
+name: Security Scan
+
+on:
+  schedule:
+    # 每周一凌晨3点运行
+    - cron: '0 3 * * 1'
+  push:
+    branches: [ main ]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  dependency-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        id: audit
+        run: |
+          echo "Running npm audit..."
+          npm audit --audit-level=moderate --json > audit-report.json || true
+          
+          # 检查是否有漏洞
+          if [ -f "audit-report.json" ]; then
+            VULNERABILITIES=$(jq '.metadata.vulnerabilities' audit-report.json)
+            echo "Vulnerabilities found:"
+            echo "$VULNERABILITIES"
+            
+            CRITICAL=$(echo "$VULNERABILITIES" | jq '.critical // 0')
+            HIGH=$(echo "$VULNERABILITIES" | jq '.high // 0')
+            MODERATE=$(echo "$VULNERABILITIES" | jq '.moderate // 0')
+            
+            echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "high=$HIGH" >> $GITHUB_OUTPUT
+            echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+            
+            # 如果有严重或高危漏洞，标记为失败
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "Found critical or high vulnerabilities!"
+              exit 1
+            fi
+          else
+            echo "No audit report generated"
+            echo "critical=0" >> $GITHUB_OUTPUT
+            echo "high=0" >> $GITHUB_OUTPUT
+            echo "moderate=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report
+          path: audit-report.json
+
+      - name: Generate security summary
+        if: always()
+        run: |
+          echo "=== Security Scan Summary ==="
+          echo "Date: $(date)"
+          echo "Repository: ${{ github.repository }}"
+          echo ""
+          echo "Dependency Vulnerabilities:"
+          echo "- Critical: ${{ steps.audit.outputs.critical }}"
+          echo "- High: ${{ steps.audit.outputs.high }}"
+          echo "- Moderate: ${{ steps.audit.outputs.moderate }}"
+          echo ""
+          
+          if [ "${{ steps.audit.outputs.critical }}" -gt 0 ]; then
+            echo "❌ CRITICAL VULNERABILITIES DETECTED!"
+            echo "Please review and update dependencies immediately."
+          elif [ "${{ steps.audit.outputs.high }}" -gt 0 ]; then
+            echo "⚠️ HIGH VULNERABILITIES DETECTED!"
+            echo "Please review and update dependencies soon."
+          elif [ "${{ steps.audit.outputs.moderate }}" -gt 0 ]; then
+            echo "ℹ️ Moderate vulnerabilities detected."
+            echo "Consider updating during next maintenance window."
+          else
+            echo "✅ No critical or high vulnerabilities detected."
+          fi
+
+      - name: Check for outdated dependencies
+        run: |
+          echo "Checking for outdated dependencies..."
+          npm outdated --json > outdated.json || true
+          
+          if [ -f "outdated.json" ] && [ -s "outdated.json" ]; then
+            echo "Outdated dependencies found:"
+            cat outdated.json | jq 'keys[]'
+            
+            COUNT=$(cat outdated.json | jq 'length')
+            echo "outdated_count=$COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "All dependencies are up to date."
+            echo "outdated_count=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload outdated report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outdated-dependencies
+          path: outdated.json
+
+      - name: Run OWASP Dependency Check (可选)
+        if: false  # 暂时禁用，需要额外配置
+        uses: dependency-check/Dependency-Check_Action@main
+        env:
+          ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
+        with:
+          project: 'github-deploy-assistant'
+          path: '.'
+          format: 'HTML'
+          out: 'reports'
+
+  # 代码安全扫描
+  code-security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ESLint security rules
+        run: |
+          echo "Checking for potential security issues in code..."
+          npx eslint src/ --config .eslintrc.js --rule 'security/detect-object-injection: error' \
+            --rule 'security/detect-eval-with-expression: error' \
+            --rule 'security/detect-non-literal-fs-filename: warn' \
+            --rule 'security/detect-non-literal-regexp: warn' \
+            --format json > eslint-security-report.json || true
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Checking for potential secrets in code..."
+          # 简单的正则匹配检查
+          grep -r -n -E "(api[_-]?key|secret|token|password|auth)[\s]*[:=][\s]*['\"][A-Za-z0-9_\-]{10,}['\"]" src/ || \
+            echo "No obvious hardcoded secrets found"
+
+      - name: Check for known vulnerable patterns
+        run: |
+          echo "Checking for known vulnerable patterns..."
+          # 检查不安全的eval使用
+          grep -r -n "eval(" src/ || echo "No eval() usage found"
+          
+          # 检查不安全的child_process用法
+          grep -r -n "child_process.*exec.*[^']\+" src/ || echo "No unsafe exec found"
+          
+          # 检查不安全的正则表达式
+          grep -r -n "new RegExp.*[^']\+" src/ || echo "No unsafe RegExp found"
+
+      - name: Upload security scan reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-security-reports
+          path: |
+            eslint-security-report.json
+
+  # 汇总和通知
+  security-summary:
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, code-security]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate comprehensive security report
+        run: |
+          echo "=== Comprehensive Security Report ==="
+          echo "Generated: $(date)"
+          echo "Repository: ${{ github.repository }}"
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo ""
+          
+          # 依赖安全状态
+          echo "## Dependency Security"
+          if [ -f "audit-report.json" ]; then
+            echo "Vulnerabilities:"
+            jq '.metadata.vulnerabilities' audit-report.json
+          else
+            echo "No audit report available"
+          fi
+          
+          # 代码安全状态
+          echo ""
+          echo "## Code Security"
+          if [ -f "eslint-security-report.json" ]; then
+            ISSUES=$(jq '. | length' eslint-security-report.json)
+            echo "Security issues found by ESLint: $ISSUES"
+          else
+            echo "No code security issues reported"
+          fi
+          
+          # 依赖更新状态
+          echo ""
+          echo "## Dependency Updates"
+          if [ -f "outdated.json" ] && [ -s "outdated.json" ]; then
+            echo "Outdated dependencies: $(jq 'length' outdated.json)"
+          else
+            echo "All dependencies are up to date"
+          fi
+          
+          echo ""
+          echo "## Recommendations"
+          echo "1. Regularly update dependencies"
+          echo "2. Review security audit reports"
+          echo "3. Fix critical/high vulnerabilities immediately"
+          echo "4. Consider enabling automated dependency updates"
+
+      - name: Create security badge
+        if: success()
+        run: |
+          # 创建简单的安全状态标记
+          echo "Security Status: ✅ PASSED" > security-status.txt
+          echo "Last scanned: $(date)" >> security-status.txt
+
+      - name: Upload final report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-final-report
+          path: |
+            security-status.txt
+            security-summary.md
