@@ -4,7 +4,8 @@
   "description": "GitHub 项目辅助安装程序 - 自动解读仓库并部署（多语言支持）",
   "main": "src/server/index.js",
   "bin": {
-    "gada": "./src/cli/index.js"
+    "gada": "./src/cli/index.js",
+    "gada-runtime": "./src/cli/with-runtime.js"
   },
   "scripts": {
     "start": "node server-i18n.js",
