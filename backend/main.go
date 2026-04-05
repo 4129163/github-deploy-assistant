@@ -16,6 +16,12 @@ import (
 )
 
 func main() {
+	// 初始化数据库
+	if err := InitDatabase(); err != nil {
+		log.Fatalf("数据库初始化失败: %v", err)
+	}
+	defer CloseDatabase()
+
 	// 初始化数据
 	handlers.InitializeData()
 

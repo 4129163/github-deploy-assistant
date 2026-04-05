@@ -25,6 +25,9 @@ func SetupRoutes(router *mux.Router) {
 	router.HandleFunc("/api/activities", handlers.GetActivities).Methods("GET")
 	router.HandleFunc("/api/activities", handlers.CreateActivity).Methods("POST")
 	
+	// 社区协作路由
+	SetupCommunityRoutes(router)
+	
 	// 404 处理
 	router.NotFoundHandler = http.HandlerFunc(notFoundHandler)
 }

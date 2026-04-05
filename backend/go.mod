@@ -2,7 +2,9 @@ module github-deploy-assistant-backend
 
 go 1.21
 
-// 由于网络问题，我们使用最小化依赖
-// 在实际部署时，应该使用 go get 下载依赖
-
-// 我们创建一个简单的 HTTP 服务器，不使用外部依赖
+require (
+	github.com/google/uuid v1.6.0
+	github.com/gorilla/mux v1.8.1
+	github.com/mattn/go-sqlite3 v1.14.22
+	github.com/rs/cors v1.11.0
+)
