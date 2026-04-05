@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Deploy Assistant - 功能按钮界面</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/button-ui.css">
+    <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <header class="app-header">
+            <div class="container">
+                <div class="header-content">
+                    <!-- Logo区域 -->
+                    <div class="logo-area">
+                        <a href="index.html" class="logo">
+                            <div class="logo-icon">
+                                <i class="fas fa-rocket"></i>
+                            </div>
+                            <div class="logo-text">
+                                <div class="logo-title">GitHub Deploy Assistant</div>
+                                <div class="logo-subtitle">功能按钮界面</div>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- 搜索区域 -->
+                    <div class="search-area">
+                        <div class="search-container">
+                            <i class="fas fa-search search-icon"></i>
+                            <input type="text" class="search-input" id="search-input" placeholder="搜索功能（按名称、描述或命令）">
+                        </div>
+                    </div>
+
+                    <!-- 操作按钮区域 -->
+                    <div class="actions-area">
+                        <button class="btn btn-ghost btn-icon" id="theme-toggle" title="切换主题">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                        <button class="btn btn-ghost btn-icon" id="help-btn" title="帮助">
+                            <i class="fas fa-question-circle"></i>
+                        </button>
+                        <button class="btn btn-primary" id="back-to-main">
+                            <i class="fas fa-arrow-left"></i>
+                            返回主界面
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主内容区域 -->
+        <div class="main-content">
+            <!-- 侧边栏 -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2 class="sidebar-title">功能分类</h2>
+                </div>
+                <ul class="category-list" id="category-list">
+                    <!-- 分类将通过JavaScript动态生成 -->
+                </ul>
+            </aside>
+
+            <!-- 主面板 -->
+            <main class="main-panel">
+                <div class="panel-header">
+                    <h1 class="panel-title" id="category-title">所有功能</h1>
+                    <p class="panel-description" id="category-description">
+                        点击功能按钮查看详细信息，右侧显示对应的专业命令
+                    </p>
+                </div>
+
+                <!-- 功能按钮网格 -->
+                <div class="functions-grid" id="functions-grid">
+                    <!-- 功能按钮将通过JavaScript动态生成 -->
+                </div>
+
+                <!-- 空状态提示 -->
+                <div class="empty-state" id="empty-state" style="display: none;">
+                    <div class="empty-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h3 class="empty-title">未找到匹配的功能</h3>
+                    <p class="empty-description">
+                        尝试使用不同的关键词搜索，或选择其他分类查看
+                    </p>
+                    <button class="btn btn-secondary" onclick="clearSearch()">
+                        <i class="fas fa-times"></i>
+                        清除搜索
+                    </button>
+                </div>
+            </main>
+
+            <!-- 命令面板 -->
+            <aside class="command-panel" id="command-panel">
+                <div class="command-header">
+                    <h2 class="command-title">专业命令</h2>
+                    <div class="actions-area">
+                        <button class="btn btn-secondary btn-sm" id="copy-command" title="复制命令">
+                            <i class="fas fa-copy"></i>
+                            复制
+                        </button>
+                        <button class="btn btn-ghost btn-sm" id="toggle-panel" title="隐藏面板">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <pre class="command-content" id="command-content">
+// 点击左侧功能按钮查看对应的命令
+// 这里将显示您选择的命令
+                </pre>
+                
+                <div class="command-history">
+                    <h3 class="history-title">最近使用的命令</h3>
+                    <div class="history-list" id="history-list">
+                        <!-- 历史记录将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script>
+        // 功能数据 - 简化的核心功能集
+        const functionsData = {
+            'all': {
+                title: '所有功能',
+                description: '包含所有可用的功能',
+                functions: []
+            },
+            'core-deploy': {
+                title: '核心部署',
+                description: '项目部署、环境配置、进程管理',
+                icon: 'fas fa-rocket',
+                functions: [
+                    {
+                        id: 'project-deploy',
+                        title: '项目一键部署',
+                        description: '自动从GitHub/Gitee克隆并部署项目',
+                        command: 'gada deploy --url {repository_url} --auto',
+                        icon: 'fas fa-rocket',
+                        category: 'category-deploy'
+                    },
+                    {
+                        id: 'analyze-repo-type',
+                        title: '项目类型智能识别',
+                        description: '自动识别Node.js、Python、Go等不同类型项目',
+                        command: 'gada analyze --path {project_path} --detailed',
+                        icon: 'fas fa-brain',
+                        category: 'category-deploy'
+                    },
+                    {
+                        id: 'auto-install-deps',
+                        title: '依赖自动安装',
+                        description: '自动安装项目所需的所有依赖包',
+                        command: 'gada install --auto --force',
+                        icon: 'fas fa-download',
+                        category: 'category-deploy'
+                    },
+                    {
+                        id: 'env-check',
+                        title: '环境自动检查',
+                        description: '检查系统环境是否满足部署要求',
+                        command: 'gada check-env --full',
+                        icon: 'fas fa-search',
+                        category: 'category-deploy'
+                    },
+                    {
+                        id: 'multi-env-deploy',
+                        title: '多环境部署支持',
+                        description: '支持本地、容器、远程等多种环境部署',
+                        command: 'gada env deploy --type {env_type}',
+                        icon: 'fas fa-globe',
+                        category: 'category-deploy'
+                    },
+                    {
+                        id: 'deploy-status',
+                        title: '部署状态监控',
+                        description: '实时监控部署状态和进度',
+                        command: 'gada status --watch',
+                        icon: 'fas fa-chart-line',
+                        category: 'category-deploy'
+                    },
+                    {
+                        id: 'real-time-logs',
+                        title: '实时日志查看',
+                        description: '实时查看项目运行日志',
+                        command: 'gada logs --follow --tail 100',
+                        icon: 'fas fa-file-alt',
+                        category: 'category-deploy'
+                    },
+                    {
+                        id: 'deploy-retry',
+                        title: '部署失败重试',
+                        description: '自动重试失败的部署任务',
+                        command: 'gada retry --last-failed',
+                        icon: 'fas fa-redo',
+                        category: 'category-deploy'
+                    }
+                ]
+            },
+            'ai-intelligence': {
+                title: 'AI智能',
+                description: 'AI分析、诊断、修复、优化',
+                icon: 'fas fa-brain',
+                functions: [
+                    {
+                        id: 'ai-analyze',
+                        title: 'AI项目分析',
+                        description: '使用AI分析项目结构和潜在问题',
+                        command: 'gada ai analyze --model openai --detailed',
+                        icon: 'fas fa-robot',
+                        category: 'category-ai'
+                    },
+                    {
+                        id: 'ai-diagnose',
+                        title: 'AI问题诊断',
+                        description: '智能诊断部署和运行问题',
+                        command: 'gada ai diagnose --verbose --fix-suggestions',
+                        icon: 'fas fa-stethoscope',
+                        category: 'category-ai'
+                    },
+                    {
+                        id: 'ai-solution',
+                        title: 'AI解决方案生成',
+                        description: '生成针对问题的具体解决方案',
+                        command: 'gada ai solve --interactive',
+                        icon: 'fas fa-lightbulb',
+                        category: 'category-ai'
+                    },
+                    {
+                        id: 'ai-fix',
+                        title: 'AI代码修复',
+                        description: '自动修复代码中的问题和错误',
+                        command: 'gada ai fix --auto --backup',
+                        icon: 'fas fa-wrench',
+                        category: 'category-ai'
+                    },
+                    {
+                        id: 'ai-optimize',
+                        title: 'AI配置优化',
+                        description: '优化项目配置和性能设置',
+                        command: 'gada ai optimize --config-only',
+                        icon: 'fas fa-cogs',
+                        category: 'category-ai'
+                    },
+                    {
+                        id: 'ai-security',
+                        title: 'AI安全扫描',
+                        description: '扫描项目中的安全漏洞和风险',
+                        command: 'gada ai security --scan --report',
+                        icon: 'fas fa-shield-alt',
+                        category: 'category-ai'
+                    },
+                    {
+                        id: 'ai-performance',
+                        title: 'AI性能优化',
+                        description: '分析并优化项目性能',
+                        command: 'gada ai performance --benchmark',
+                        icon: 'fas fa-tachometer-alt',
+                        category: 'category-ai'
+                    }
+                ]
+            },
+            'project-management': {
+                title: '项目管理',
+                description: '项目管理、配置、监控、备份',
+                icon: 'fas fa-project-diagram',
+                functions: [
+                    {
+                        id: 'project-list',
+                        title: '项目列表查看',
+                        description: '查看所有已部署的项目',
+                        command: 'gada projects list --format json',
+                        icon: 'fas fa-list',
+                        category: 'category-project'
+                    },
+                    {
+                        id: 'project-details',
+                        title: '项目详情展示',
+                        description: '查看项目的详细信息和配置',
+                        command: 'gada projects show {project_id} --full',
+                        icon: 'fas fa-info-circle',
+                        category: 'category-project'
+                    },
+                    {
+                        id: 'project-config',
+                        title: '项目配置管理',
+                        description: '管理项目的配置和设置',
+                        command: 'gada config edit --project {project_id}',
+                        icon: 'fas fa-sliders-h',
+                        category: 'category-project'
+                    },
+                    {
+                        id: 'project-monitor',
+                        title: '项目状态监控',
+                        description: '实时监控项目运行状态',
+                        command: 'gada monitor --project {project_id} --watch',
+                        icon: 'fas fa-heartbeat',
+                        category: 'category-project'
+                    },
+                    {
+                        id: 'project-logs',
+                        title: '项目日志查看',
+                        description: '查看项目的运行日志',
+                        command: 'gada logs --project {project_id} --since 1h',
+                        icon: 'fas fa-history',
+                        category: 'category-project'
+                    },
+                    {
+                        id: 'project-backup',
+                        title: '项目备份管理',
+                        description: '创建和管理项目备份',
+                        command: 'gada backup create --project {project_id} --full',
+                        icon: 'fas fa-save',
+                        category: 'category-project'
+                    }
+                ]
+            },
+            'monitoring-diagnosis': {
+                title: '监控诊断',
+                description: '系统监控、性能分析、问题诊断',
+                icon: 'fas fa-chart-line',
+                functions: [
+                    {
+                        id: 'real-time-monitor',
+                        title: '实时资源监控',
+                        description: '实时监控CPU、内存、磁盘使用情况',
+                        command: 'gada system monitor --all --interval 2s',
+                        icon: 'fas fa-desktop',
+                        category: 'category-monitor'
+                    },
+                    {
+                        id: 'performance-metrics',
+                        title: '性能指标收集',
+                        description: '收集和分析系统性能指标',
+                        command: 'gada metrics collect --export --format json',
+                        icon: 'fas fa-chart-pie',
+                        category: 'category-monitor'
+                    },
+                    {
+                        id: 'health-check',
+                        title: '系统健康检查',
+                        description: '检查系统健康状况',
+                        command: 'gada health check --all --verbose',
+                        icon: 'fas fa-heart',
+                        category: 'category-monitor'
+                    },
+                    {
+                        id: 'auto-detect',
+                        title: '问题自动检测',
+                        description: '自动检测系统和应用问题',
+                        command: 'gada diagnose auto --fix-suggestions',
+                        icon: 'fas fa-search',
+                        category: 'category-monitor'
+                    }
+                ]
+            },
+            'security-audit': {
+                title: '安全审计',
+                description: '安全扫描、权限管理、审计日志',
+                icon: 'fas fa-shield-alt',
+                functions: [
+                    {
+                        id: 'user-auth',
+                        title: '用户身份认证',
+                        description: '用户登录和身份验证管理',
+                        command: 'gada auth login --username {username}',
+                        icon: 'fas fa-user-shield',
+                        category: 'category-security'
+                    },
+                    {
+                        id: 'role-permissions',
+                        title: '角色权限管理',
+                        description: '管理用户角色和权限',
+                        command: 'gada permissions set --role admin --permissions full',
+                        icon: 'fas fa-user-tag',
+                        category: 'category-security'
+                    },
+                    {
+                        id: 'vulnerability-scan',
+                        title: '漏洞扫描系统',
+                        description: '扫描系统和应用漏洞',
+                        command: 'gada security scan --full --report-html',
+                        icon: 'fas fa-bug',
+                        category: 'category-security'
+                    }
+                ]
+            }
+        };
+
+        // 分类数据
+        const categories = [
+            { id: 'all', title: '所有功能', icon: 'fas fa-th', description: '查看所有可用功能' },
+            { id: 'core-deploy', title: '核心部署', icon: 'fas fa-rocket', description: '项目部署和配置' },
+            { id: 'ai-intelligence', title: 'AI智能', icon: 'fas fa-brain', description: 'AI分析和优化' },
+            { id: 'project-management', title: '项目管理', icon: 'fas fa-project-diagram', description: '项目管理和监控' },
+            { id: 'monitoring-diagnosis', title: '监控诊断', icon: 'fas fa-chart-line', description: '系统监控和诊断' },
+            { id: 'security-audit', title: '安全审计', icon: 'fas fa-shield-alt', description: '安全和权限管理' }
+        ];
+
+        // 当前状态
+        let currentCategory = 'all';
+        let currentFunction = null;
+        const commandHistory = [];
+        let allFunctions = [];
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 收集所有功能
+            Object.values(functionsData).forEach(category => {
+                if (category.functions) {
+                    allFunctions = allFunctions.concat(category.functions);
+                }
+            });
+            
+            // 更新"所有功能"分类
+            functionsData.all.functions = allFunctions;
+            
+            initCategories();
+            initFunctions();
+            initEventListeners();
+            updateCommandDisplay('点击功能按钮查看对应命令');
+            updateHistoryDisplay();
+        });
+
+        // 初始化分类
+        function initCategories() {
+            const categoryList = document.getElementById('category-list');
+            categoryList.innerHTML = '';
+
+            categories.forEach(category => {
+                const li = document.createElement('li');
+                li.className = 'category-item';
+                
+                const link = document.createElement('a');
+                link.className = `category-link ${category.id === currentCategory ? 'active' : ''}`;
+                link.href = '#';
+                link.dataset.category = category.id;
+                
+                link.innerHTML = `
+                    <div class="category-icon">
+                        <i class="${category.icon}"></i>
+                    </div>
+                    <span class="category-name">${category.title}</span>
+                    <span class="category-count">${functionsData[category.id]?.functions?.length || 0}</span>
+                `;
+                
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    selectCategory(category.id);
+                });
+                
+                li.appendChild(link);
+                categoryList.appendChild(li);
+            });
+        }
+
+        // 初始化功能按钮
+        function initFunctions() {
+            const functionsGrid = document.getElementById('functions-grid');
+            const emptyState = document.getElementById('empty-state');
+            
+            functionsGrid.innerHTML = '';
+
+            // 获取当前分类的功能
+            let displayFunctions = [];
+            if (currentCategory === 'all') {
+                displayFunctions = allFunctions;
+            } else {
+                const categoryData = functionsData[currentCategory];
+                if (categoryData && categoryData.functions) {
+                    displayFunctions = categoryData.functions;
+                }
+            }
+
+            // 应用搜索过滤
+            const searchInput = document.getElementById('search-input');
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            
+            if (searchTerm) {
+                displayFunctions = displayFunctions.filter(func => {
+                    return func.title.toLowerCase().includes(searchTerm) ||
+                           func.description.toLowerCase().includes(searchTerm) ||
+                           func.command.toLowerCase().includes(searchTerm);
+                });
+            }
+
+            // 显示/隐藏空状态
+            if (displayFunctions.length === 0) {
+                functionsGrid.style.display = 'none';
+                emptyState.style.display = 'flex';
+            } else {
+                functionsGrid.style.display = 'grid';
+                emptyState.style.display = 'none';
+            }
+
+            // 生成功能按钮
+            displayFunctions.forEach(func => {
+                const card = document.createElement('div');
+                card.className = `function-card ${func.id === currentFunction ? 'active' : ''}`;
+                card.dataset.function = func.id;
+                card.dataset.command = func.command;
+
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="card-icon-container ${func.category}">
+                            <i class="${func.icon} card-icon"></i>
+                        </div>
+                        <div class="card-title-container">
+                            <h3 class="card-title">${func.title}</h3>
+                            <div class="card-subtitle">${func.category.replace('category-', '').toUpperCase()}</div>
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <p class="card-description">${func.description}</p>
+                    </div>
+                    <div class="card-footer">
+                        <div class="card-command">${func.command}</div>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => selectFunction(func.id, func));
+                functionsGrid.appendChild(card);
+            });
+
+            // 更新分类标题
+            if (currentCategory === 'all') {
+                document.getElementById('category-title').textContent = '所有功能';
+                document.getElementById('category-description').textContent = `共 ${allFunctions.length} 个功能，点击按钮查看详细信息`;
+            } else {
+                const category = categories.find(c => c.id === currentCategory);
+                if (category) {
+                    document.getElementById('category-title').textContent = category.title;
+                    document.getElementById('category-description').textContent = category.description;
+                }
+            }
+        }
+
+        // 选择分类
+        function selectCategory(categoryId) {
+            currentCategory = categoryId;
+            currentFunction = null;
+            
+            // 更新分类激活状态
+            document.querySelectorAll('.category-link').forEach(link => {
+                link.classList.toggle('active', link.dataset.category === categoryId);
+            });
+            
+            initFunctions();
+            updateCommandDisplay('请选择功能查看对应命令');
+        }
+
+        // 选择功能
+        function selectFunction(functionId, functionData) {
+            currentFunction = functionId;
+            
+            // 更新按钮激活状态
+            document.querySelectorAll('.function-card').forEach(card => {
+                card.classList.toggle('active', card.dataset.function === functionId);
+            });
+            
+            // 更新命令显示
+            updateCommandDisplay(functionData.command);
+            
+            // 添加到历史记录
+            addToHistory(functionData.title, functionData.command);
+            
+            // 滚动到命令面板（移动端）
+            if (window.innerWidth < 992) {
+                document.getElementById('command-panel').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        // 更新命令显示
+        function updateCommandDisplay(command) {
+            const commandContent = document.getElementById('command-content');
+            commandContent.textContent = command;
+        }
+
+        // 添加到历史记录
+        function addToHistory(title, command) {
+            const history = {
+                title: title,
+                command: command,
+                timestamp: new Date().toLocaleTimeString()
+            };
+            
+            // 检查是否已存在相同命令
+            const existingIndex = commandHistory.findIndex(h => h.command === command);
+            if (existingIndex !== -1) {
+                commandHistory.splice(existingIndex, 1);
+            }
+            
+            commandHistory.unshift(history);
+            if (commandHistory.length > 10) {
+                commandHistory.pop();
+            }
+            
+            updateHistoryDisplay();
+        }
+
+        // 更新历史记录显示
+        function updateHistoryDisplay() {
+            const historyList = document.getElementById('history-list');
+            historyList.innerHTML = '';
+            
+            if (commandHistory.length === 0) {
+                const emptyItem = document.createElement('div');
+                emptyItem.className = 'history-item';
+                emptyItem.textContent = '暂无历史记录';
+                emptyItem.style.color = 'var(--gray-400)';
+                emptyItem.style.cursor = 'default';
+                historyList.appendChild(emptyItem);
+                return;
+            }
+            
+            commandHistory.forEach(history => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.textContent = `${history.command}`;
+                item.title = `${history.title} (${history.timestamp})`;
+                
+                item.addEventListener('click', () => {
+                    updateCommandDisplay(history.command);
+                });
+                
+                historyList.appendChild(item);
+            });
+        }
+
+        // 初始化事件监听器
+        function initEventListeners() {
+            // 复制命令按钮
+            document.getElementById('copy-command').addEventListener('click', function() {
+                const command = document.getElementById('command-content').textContent;
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(command).then(() => {
+                        const originalIcon = this.querySelector('i');
+                        const originalText = this.querySelector('span');
+                        const originalIconClass = originalIcon.className;
+                        const originalTextContent = originalText.textContent;
+                        
+                        originalIcon.className = 'fas fa-check';
+                        originalText.textContent = '已复制';
+                        
+                        setTimeout(() => {
+                            originalIcon.className = originalIconClass;
+                            originalText.textContent = originalTextContent;
+                        }, 2000);
+                    });
+                } else {
+                    // 兼容旧版浏览器
+                    const textArea = document.createElement('textarea');
+                    textArea.value = command;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    
+                    alert('命令已复制到剪贴板');
+                }
+            });
+
+            // 搜索功能
+            document.getElementById('search-input').addEventListener('input', function(e) {
+                initFunctions();
+            });
+
+            // 搜索输入框回车键支持
+            document.getElementById('search-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    initFunctions();
+                }
+            });
+
+            // 主题切换
+            document.getElementById('theme-toggle').addEventListener('click', function() {
+                const html = document.documentElement;
+                const currentTheme = html.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                html.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme-preference', newTheme);
+                
+                const icon = this.querySelector('i');
+                icon.className = newTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+                this.title = newTheme === 'dark' ? '切换到浅色模式' : '切换到深色模式';
+            });
+
+            // 恢复主题偏好
+            const savedTheme = localStorage.getItem('theme-preference') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            const themeToggleIcon = document.querySelector('#theme-toggle i');
+            themeToggleIcon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            document.getElementById('theme-toggle').title = savedTheme === 'dark' ? '切换到浅色模式' : '切换到深色模式';
+
+            // 面板切换
+            document.getElementById('toggle-panel').addEventListener('click', function() {
+                const panel = document.getElementById('command-panel');
+                const isVisible = panel.style.display !== 'none';
+                panel.style.display = isVisible ? 'none' : 'flex';
+                
+                const icon = this.querySelector('i');
+                icon.className = isVisible ? 'fas fa-chevron-left' : 'fas fa-times';
+                this.title = isVisible ? '显示面板' : '隐藏面板';
+            });
+
+            // 帮助按钮
+            document.getElementById('help-btn').addEventListener('click', function() {
+                showHelpModal();
+            });
+
+            // 返回主界面按钮
+            document.getElementById('back-to-main').addEventListener('click', function() {
+                window.location.href = 'index.html';
+            });
+
+            // 窗口大小变化时重新布局
+            window.addEventListener('resize', initFunctions);
+        }
+
+        // 清除搜索
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            initFunctions();
+        }
+
+        // 显示帮助模态框
+        function showHelpModal() {
+            const modalHtml = `
+                <div class="modal-overlay" id="help-modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2 class="modal-title">使用帮助</h2>
+                            <button class="btn btn-ghost btn-icon close-modal">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="help-section">
+                                <h3><i class="fas fa-rocket"></i> 功能按钮界面介绍</h3>
+                                <p>这个界面将GitHub Deploy Assistant的所有功能转化为直观的按钮，方便普通用户使用。</p>
+                            </div>
+                            
+                            <div class="help-section">
+                                <h3><i class="fas fa-columns"></i> 界面布局</h3>
+                                <ul>
+                                    <li><strong>左侧分类导航</strong>：按功能分类浏览，点击切换分类</li>
+                                    <li><strong>中间功能网格</strong>：显示当前分类的所有功能按钮</li>
+                                    <li><strong>右侧命令面板</strong>：显示选中功能的专业命令</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="help-section">
+                                <h3><i class="fas fa-mouse-pointer"></i> 使用方法</h3>
+                                <ol>
+                                    <li>在左侧选择功能分类</li>
+                                    <li>点击功能按钮查看详细信息</li>
+                                    <li>右侧会显示对应的专业命令</li>
+                                    <li>点击"复制"按钮复制命令到剪贴板</li>
+                                    <li>使用搜索框快速查找功能</li>
+                                </ol>
+                            </div>
+                            
+                            <div class="help-section">
+                                <h3><i class="fas fa-code"></i> 专业用户功能</h3>
+                                <p>对于专业用户，您可以：</p>
+                                <ul>
+                                    <li>查看每个功能对应的命令行命令</li>
+                                    <li>复制命令直接使用</li>
+                                    <li>查看命令使用历史</li>
+                                    <li>在右侧面板切换主题（深色/浅色）</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="help-section">
+                                <h3><i class="fas fa-search"></i> 搜索功能</h3>
+                                <p>支持以下搜索方式：</p>
+                                <ul>
+                                    <li>按功能名称搜索</li>
+                                    <li>按功能描述搜索</li>
+                                    <li>按命令行命令搜索</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-primary close-modal">
+                                <i class="fas fa-check"></i>
+                                我知道了
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 创建模态框
+            const modalContainer = document.createElement('div');
+            modalContainer.innerHTML = modalHtml;
+            document.body.appendChild(modalContainer);
+            
+            // 添加模态框样式
+            const modalStyle = document.createElement('style');
+            modalStyle.textContent = `
+                .modal-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                    padding: 20px;
+                }
+                
+                .modal-content {
+                    background: var(--white);
+                    border-radius: var(--radius-lg);
+                    max-width: 600px;
+                    width: 100%;
+                    max-height: 80vh;
+                    overflow: auto;
+                    box-shadow: var(--shadow-2xl);
+                }
+                
+                .modal-header {
+                    padding: var(--space-4);
+                    border-bottom: 1px solid var(--gray-200);
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                
+                .modal-title {
+                    font-size: 20px;
+                    font-weight: 600;
+                    color: var(--gray-900);
+                }
+                
+                .modal-body {
+                    padding: var(--space-4);
+                }
+                
+                .help-section {
+                    margin-bottom: var(--space-4);
+                }
+                
+                .help-section h3 {
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: var(--gray-800);
+                    margin-bottom: var(--space-2);
+                    display: flex;
+                    align-items: center;
+                    gap: var(--space-2);
+                }
+                
+                .help-section p, .help-section ul, .help-section ol {
+                    color: var(--gray-600);
+                    font-size: 14px;
+                    line-height: 1.6;
+                }
+                
+                .help-section ul, .help-section ol {
+                    padding-left: var(--space-4);
+                    margin: var(--space-2) 0;
+                }
+                
+                .help-section li {
+                    margin-bottom: var(--space-1);
+                }
+                
+                .modal-footer {
+                    padding: var(--space-4);
+                    border-top: 1px solid var(--gray-200);
+                    text-align: right;
+                }
+            `;
+            document.head.appendChild(modalStyle);
+            
+            // 关闭模态框事件
+            const closeButtons = modalContainer.querySelectorAll('.close-modal');
+            closeButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    document.body.removeChild(modalContainer);
+                    document.head.removeChild(modalStyle);
+                });
+            });
+            
+            // 点击遮罩层关闭
+            modalContainer.querySelector('.modal-overlay').addEventListener('click', (e) => {
+                if (e.target === e.currentTarget) {
+                    document.body.removeChild(modalContainer);
+                    document.head.removeChild(modalStyle);
+                }
+            });
+            
+            // ESC键关闭
+            const handleEsc = (e) => {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(modalContainer);
+                    document.head.removeChild(modalStyle);
+                    document.removeEventListener('keydown', handleEsc);
+                }
+            };
+            document.addEventListener('keydown', handleEsc);
+        }
+    </script>
+</body>
+</html>
