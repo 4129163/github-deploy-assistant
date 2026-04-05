@@ -560,6 +560,9 @@
         </div>
     </div>
 
+    <!-- 交互反馈系统 -->
+    <script src="js/interaction-feedback.js"></script>
+
     <script>
         // 功能数据
         const functionsData = {
@@ -993,19 +996,63 @@
                 card.className = `function-card ${func.id === currentFunction ? 'active' : ''}`;
                 card.dataset.function = func.id;
                 card.dataset.command = func.command;
+                card.dataset.title = func.title;
+                card.dataset.description = func.description;
 
                 card.innerHTML = `
                     <div class="card-header">
                         <div class="card-icon ${func.category}">
-                            <i class="${func.icon}"></i>
+                                <i class="${func.icon}"></i>
                         </div>
                         <div class="card-title">${func.title}</div>
                     </div>
                     <div class="card-description">${func.description}</div>
                     <div class="card-command">${func.command}</div>
+                    <div class="function-status" style="display: none; align-items: center; gap: 8px; margin-top: 8px; padding: 4px; border-radius: 4px;">
+                        <span class="loading-animation"></span>
+                        <span class="status-text" style="font-size: 12px; color: var(--color-gray-400);"></span>
+                    </div>
                 `;
 
-                card.addEventListener('click', () => selectFunction(func.id, func));
+                card.addEventListener('click', function() {
+                    selectFunction(func.id, func);
+                    
+                    // 使用交互反馈系统处理功能点击
+                    if (window.InteractionFeedback) {
+                        // 显示加载状态
+                        const loadingEl = this.querySelector('.function-status');
+                        const statusText = this.querySelector('.status-text');
+                        
+                        loadingEl.style.display = 'flex';
+                        statusText.textContent = '执行中...';
+                        
+                        // 模拟执行过程
+                        window.InteractionFeedback.simulateCommandExecution(
+                            func.command,
+                            {
+                                delay: 1500 + Math.random() * 2000,
+                                success: Math.random() > 0.1, // 90%成功率
+                                output: `功能 ${func.title} 执行完成`
+                            }
+                        ).then(result => {
+                            // 更新状态
+                            if (result.success) {
+                                statusText.textContent = '执行成功';
+                                loadingEl.style.background = 'rgba(16, 185, 129, 0.1)';
+                            } else {
+                                statusText.textContent = '执行失败';
+                                loadingEl.style.background = 'rgba(239, 68, 68, 0.1)';
+                            }
+                            
+                            // 3秒后隐藏状态
+                            setTimeout(() => {
+                                loadingEl.style.display = 'none';
+                                loadingEl.style.background = '';
+                            }, 3000);
+                        });
+                    }
+                });
+                
                 functionsGrid.appendChild(card);
             });
 
@@ -1050,6 +1097,16 @@
             
             // 添加到历史记录
             addToHistory(functionData.title, functionData.command);
+            
+            // 使用交互反馈系统记录操作
+            if (window.InteractionFeedback) {
+                window.InteractionFeedback.logOperation('INFO', `选择功能: ${functionData.title}`);
+                window.InteractionFeedback.logOperation('INFO', `功能描述: ${functionData.description}`);
+                window.InteractionFeedback.logOperation('INFO', `对应命令: ${functionData.command}`);
+                
+                // 更新状态栏
+                window.InteractionFeedback.updateStatus('last-operation', `选择: ${functionData.title}`, 'active');
+            }
         }
 
         // 更新命令显示
@@ -1104,6 +1161,18 @@
                     setTimeout(() => {
                         this.innerHTML = originalIcon;
                     }, 2000);
+                    
+                    // 使用交互反馈系统记录成功复制
+                    if (window.InteractionFeedback) {
+                        window.InteractionFeedback.showNotification('success', '复制成功', '命令已复制到剪贴板');
+                        window.InteractionFeedback.logOperation('SUCCESS', `命令复制成功: ${command.substring(0, 50)}...`);
+                    }
+                }).catch(err => {
+                    // 使用交互反馈系统记录复制失败
+                    if (window.InteractionFeedback) {
+                        window.InteractionFeedback.showNotification('error', '复制失败', '无法复制命令到剪贴板');
+                        window.InteractionFeedback.logOperation('ERROR', `命令复制失败: ${err.message}`);
+                    }
                 });
             });
 
