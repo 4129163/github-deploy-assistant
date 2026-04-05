@@ -158,7 +158,11 @@ async function saveData() {
         await fs.writeFile('data.json', JSON.stringify(data, null, 2));
         console.log('数据已保存到文件');
     } catch (error) {
-        console.error('保存数据失败:', error);
+        console.error('保存数据失败:', {
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+            timestamp: new Date().toISOString()
+        });
     }
 }
 
@@ -427,7 +431,11 @@ app.post('/api/deploy', async (req, res) => {
             message: '项目部署已开始'
         });
     } catch (error) {
-        console.error('部署项目失败:', error);
+        console.error('部署项目失败:', {
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+            timestamp: new Date().toISOString()
+        });
         res.status(500).json({ 
             error: '部署项目失败',
             message: error.message
@@ -455,7 +463,11 @@ app.get('/api/deploy/status/:projectId', async (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('获取部署状态失败:', error);
+        console.error('获取部署状态失败:', {
+            message: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+            timestamp: new Date().toISOString()
+        });
         res.status(500).json({ 
             error: '获取部署状态失败',
             message: error.message
