@@ -19,6 +19,9 @@ const aiRoutes = require('./src/routes/ai');
 const deployResumeRoutes = require('./src/routes/deploy-resume');
 const { deployCheckpointIntegration } = require('./src/deploy-checkpoint-integration');
 
+// 浏览器扩展功能
+const browserRoutes = require('./src/routes/browser');
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -29,8 +32,34 @@ const io = socketIo(server, {
 });
 const PORT = process.env.PORT || 3000;
 
-// 中间件
-app.use(cors());
+// 中间件 - 支持浏览器扩展的CORS配置
+const corsOptions = {
+  origin: function (origin, callback) {
+    // 允许以下来源：
+    // 1. 没有origin（如curl请求）
+    // 2. localhost所有端口
+    // 3. 浏览器扩展（chrome-extension://*, moz-extension://*）
+    // 4. 127.0.0.1所有端口
+    if (!origin) {
+      callback(null, true);
+    } else if (
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1') ||
+      origin.includes('chrome-extension://') ||
+      origin.includes('moz-extension://') ||
+      origin.includes('edge-extension://')
+    ) {
+      callback(null, true);
+    } else {
+      callback(new Error('不允许的来源'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static('public'));
 
@@ -48,6 +77,9 @@ app.use('/api/ai', aiRoutes);
 
 // 部署恢复路由
 app.use('/api/deploy', deployResumeRoutes);
+
+// 浏览器扩展路由
+app.use('/api/browser', browserRoutes);
 
 // 数据存储
 let projects = [];

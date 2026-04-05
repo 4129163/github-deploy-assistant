@@ -1,0 +1,226 @@
+/* GitHub Deploy Assistant 浏览器扩展 - 注入样式 */
+
+/* 部署按钮样式 */
+.gada-deploy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #6e8efb, #a777e3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  user-select: none;
+}
+
+.gada-deploy-button:hover {
+  background: linear-gradient(135deg, #5a7df9, #8e5ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.gada-deploy-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.gada-deploy-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.gada-deploy-button:disabled:hover {
+  background: linear-gradient(135deg, #6e8efb, #a777e3);
+}
+
+.gada-button-icon {
+  margin-right: 6px;
+  font-size: 16px;
+}
+
+.gada-button-text {
+  white-space: nowrap;
+}
+
+/* GitHub 页面适配 */
+.github-com .gada-deploy-button {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* 在GitHub仓库标题区域 */
+.repository-content .gada-deploy-button,
+.pagehead-actions .gada-deploy-button {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Gitee 页面适配 */
+.gitee-com .gada-deploy-button {
+  margin-left: 10px;
+}
+
+.repository-title ~ .gada-deploy-button {
+  margin-left: 15px;
+}
+
+/* 通知样式 */
+.gada-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
+  animation: gada-slide-in 0.3s ease;
+  transition: opacity 0.3s ease;
+  max-width: 400px;
+  min-width: 300px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+.gada-notification-success {
+  border-left: 4px solid #2ea043;
+}
+
+.gada-notification-error {
+  border-left: 4px solid #d73a49;
+}
+
+.gada-notification-icon {
+  margin-right: 12px;
+  font-size: 18px;
+}
+
+.gada-notification-text {
+  font-size: 14px;
+  line-height: 1.4;
+  color: #24292f;
+  flex: 1;
+}
+
+/* 动画 */
+@keyframes gada-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes gada-pulse {
+  0% {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    box-shadow: 0 2px 4px rgba(110, 142, 251, 0.3);
+  }
+  100% {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* 加载状态 */
+.gada-deploy-button.loading {
+  animation: gada-pulse 1.5s infinite;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .gada-deploy-button {
+    padding: 4px 8px;
+    font-size: 12px;
+    margin-left: 4px;
+  }
+  
+  .gada-button-icon {
+    font-size: 14px;
+    margin-right: 4px;
+  }
+  
+  .gada-notification {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+    min-width: auto;
+  }
+}
+
+/* 暗色模式支持 */
+@media (prefers-color-scheme: dark) {
+  .gada-deploy-button {
+    background: linear-gradient(135deg, #5a7df9, #8e5ed8);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .gada-deploy-button:hover {
+    background: linear-gradient(135deg, #4a6df8, #7a4ed7);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .gada-deploy-button:disabled {
+    background: linear-gradient(135deg, #5a7df9, #8e5ed8);
+  }
+  
+  .gada-notification {
+    background: rgba(36, 41, 47, 0.95);
+    border-color: #444d56;
+  }
+  
+  .gada-notification-text {
+    color: #f0f6fc;
+  }
+  
+  .gada-notification-success {
+    border-left-color: #2ea043;
+  }
+  
+  .gada-notification-error {
+    border-left-color: #f85149;
+  }
+}
+
+/* GitHub特定暗色模式 */
+[data-color-mode="dark"][data-dark-theme="dark"],
+[data-color-mode="auto"][data-light-theme="dark"] {
+  .gada-deploy-button {
+    background: linear-gradient(135deg, #5a7df9, #8e5ed8);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .gada-deploy-button:hover {
+    background: linear-gradient(135deg, #4a6df8, #7a4ed7);
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .gada-notification {
+    background: rgba(36, 41, 47, 0.95);
+    border-color: #444d56;
+  }
+  
+  .gada-notification-text {
+    color: #f0f6fc;
+  }
+}

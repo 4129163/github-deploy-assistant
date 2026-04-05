@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GADA扩展设置</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 500px;
+            min-height: 400px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: #f6f8fa;
+            color: #24292f;
+            padding: 0;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .title h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .title p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .container {
+            padding: 24px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e1e4e8;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #24292f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title i {
+            font-size: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #24292f;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 14px;
+            border: 1px solid #d1d5da;
+            border-radius: 6px;
+            background: #fafbfc;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #0366d6;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1);
+        }
+
+        .form-control:disabled {
+            background: #f6f8fa;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .form-text {
+            font-size: 12px;
+            color: #6a737d;
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #2ea043;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2c974b;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 164, 79, 0.2);
+        }
+
+        .btn-secondary {
+            background: #f6f8fa;
+            color: #24292f;
+            border: 1px solid #d1d5da;
+        }
+
+        .btn-secondary:hover {
+            background: #e1e4e8;
+        }
+
+        .btn-danger {
+            background: #d73a49;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #cb2431;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .status-card {
+            background: #f6f8fa;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .status-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .status-title {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-dot.online {
+            background: #2ea043;
+            box-shadow: 0 0 8px #2ea043;
+        }
+
+        .status-dot.offline {
+            background: #d73a49;
+            box-shadow: 0 0 8px #d73a49;
+        }
+
+        .status-info {
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .test-result {
+            margin-top: 12px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .test-result.success {
+            background: #dafbe1;
+            border: 1px solid #2ea043;
+            color: #0e4429;
+            display: block;
+        }
+
+        .test-result.error {
+            background: #ffebe9;
+            border: 1px solid #d73a49;
+            color: #86181d;
+            display: block;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading.dark {
+            border: 2px solid rgba(36, 41, 47, 0.3);
+            border-top-color: #24292f;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e4e8;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 12px;
+        }
+
+        .footer-link {
+            font-size: 13px;
+            color: #0366d6;
+            text-decoration: none;
+        }
+
+        .footer-link:hover {
+            text-decoration: underline;
+        }
+
+        .footer-copy {
+            font-size: 12px;
+            color: #6a737d;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* 暗色模式支持 */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: #0d1117;
+                color: #c9d1d9;
+            }
+
+            .section {
+                background: #161b22;
+                border-color: #30363d;
+            }
+
+            .form-control {
+                background: #0d1117;
+                border-color: #30363d;
+                color: #c9d1d9;
+            }
+
+            .form-control:focus {
+                border-color: #58a6ff;
+                background: #161b22;
+                box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+            }
+
+            .form-control:disabled {
+                background: #161b22;
+            }
+
+            .form-label {
+                color: #c9d1d9;
+            }
+
+            .form-text {
+                color: #8b949e;
+            }
+
+            .btn-secondary {
+                background: #21262d;
+                color: #c9d1d9;
+                border-color: #30363d;
+            }
+
+            .btn-secondary:hover {
+                background: #30363d;
+            }
+
+            .status-card {
+                background: #161b22;
+            }
+
+            .test-result.success {
+                background: #132238;
+                border-color: #238636;
+                color: #7ee787;
+            }
+
+            .test-result.error {
+                background: #2d1c23;
+                border-color: #da3633;
+                color: #ff7b72;
+            }
+
+            .footer {
+                border-color: #30363d;
+            }
+
+            .footer-link {
+                color: #58a6ff;
+            }
+
+            .footer-copy {
+                color: #8b949e;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">⚙️</div>
+        <div class="title">
+            <h1>GADA扩展设置</h1>
+            <p>配置您的GitHub Deploy Assistant浏览器扩展</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="section">
+            <div class="section-title">
+                <span>🔧</span> 基本设置
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="serviceUrl">GADA本地服务地址</label>
+                <input type="url" id="serviceUrl" class="form-control" 
+                       placeholder="http://localhost:3000">
+                <div class="form-text">
+                    本地GADA服务的URL地址。默认是 http://localhost:3000
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">连接设置</label>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="autoCheck" class="checkbox" checked>
+                    <label for="autoCheck" class="checkbox-label">
+                        自动检测本地服务状态
+                    </label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showNotifications" class="checkbox" checked>
+                    <label for="showNotifications" class="checkbox-label">
+                        显示桌面通知
+                    </label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="enableLogging" class="checkbox">
+                    <label for="enableLogging" class="checkbox-label">
+                        启用详细日志记录
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="maxRetries">最大重试次数</label>
+                <input type="number" id="maxRetries" class="form-control" 
+                       min="1" max="10" value="3">
+                <div class="form-text">
+                    连接失败时的最大重试次数
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                <span>🔌</span> 连接测试
+            </div>
+            
+            <div class="status-card">
+                <div class="status-header">
+                    <div class="status-title">GADA本地服务状态</div>
+                    <div class="status-indicator">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText">检测中...</span>
+                    </div>
+                </div>
+                <div class="status-info" id="statusInfo">
+                    正在检查本地GADA服务连接...
+                </div>
+            </div>
+
+            <div id="testResult" class="test-result"></div>
+
+            <div class="button-group">
+                <button id="testBtn" class="btn btn-primary">
+                    <span>测试连接</span>
+                    <span id="testLoading" class="loading dark hidden"></span>
+                </button>
+                <button id="resetBtn" class="btn btn-secondary">恢复默认设置</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                <span>🗑️</span> 数据管理
+            </div>
+            
+            <div class="form-text" style="margin-bottom: 16px;">
+                管理扩展的本地存储数据
+            </div>
+
+            <div class="button-group">
+                <button id="clearCacheBtn" class="btn btn-secondary">
+                    <span>🔄</span> 清除缓存
+                </button>
+                <button id="exportDataBtn" class="btn btn-secondary">
+                    <span>📥</span> 导出数据
+                </button>
+                <button id="importDataBtn" class="btn btn-secondary">
+                    <span>📤</span> 导入数据
+                </button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">
+                <span>ℹ️</span> 关于
+            </div>
+            
+            <div class="form-group">
+                <div class="form-label">扩展信息</div>
+                <div class="form-text" style="margin-bottom: 8px;">
+                    <strong>名称：</strong>GitHub Deploy Assistant (GADA)<br>
+                    <strong>版本：</strong><span id="versionInfo">v1.0.0</span><br>
+                    <strong>作者：</strong>kai0339 &lt;19106440339@163.com&gt;<br>
+                    <strong>项目主页：</strong>https://gitee.com/kai0339/github-deploy-assistant
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button id="saveBtn" class="btn btn-primary">
+                    <span>💾</span> 保存设置
+                </button>
+                <button id="closeBtn" class="btn btn-secondary">关闭</button>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="footer-links">
+                <a href="https://gitee.com/kai0339/github-deploy-assistant" target="_blank" class="footer-link">项目主页</a>
+                <a href="https://gitee.com/kai0339/github-deploy-assistant/issues" target="_blank" class="footer-link">问题反馈</a>
+                <a href="#" id="checkUpdateBtn" class="footer-link">检查更新</a>
+            </div>
+            <div class="footer-copy">
+                © 2026 kai0339. GADA项目遵循MIT许可证。
+            </div>
+        </div>
+    </div>
+
+    <script src="scripts/utils.js"></script>
+    <script>
+        class GADAOptions {
+            constructor() {
+                this.settings = {
+                    serviceUrl: 'http://localhost:3000',
+                    autoCheck: true,
+                    showNotifications: true,
+                    enableLogging: false,
+                    maxRetries: 3
+                };
+                this.init();
+            }
+
+            async init() {
+                // 加载保存的设置
+                await this.loadSettings();
+                
+                // 检查服务状态
+                await this.checkServiceStatus();
+                
+                // 绑定事件
+                this.bindEvents();
+                
+                // 显示版本信息
+                this.showVersion();
+            }
+
+            async loadSettings() {
+                try {
+                    const savedSettings = await GADAUtils.storage.get('gadaSettings');
+                    if (savedSettings) {
+                        this.settings = { ...this.settings, ...savedSettings };
+                        this.updateForm();
+                    }
+                } catch (error) {
+                    console.error('加载设置失败:', error);
+                }
+            }
+
+            async saveSettings() {
+                try {
+                    // 从表单获取当前设置
+                    this.getFormValues();
+                    
+                    // 保存到存储
+                    await GADAUtils.storage.set('gadaSettings', this.settings);
+                    
+                    // 显示成功消息
+                    this.showMessage('设置已保存成功', 'success');
+                    
+                    // 重新检查服务状态
+                    setTimeout(() => this.checkServiceStatus(), 1000);
+                    
+                    return true;
+                } catch (error) {
+                    console.error('保存设置失败:', error);
+                    this.showMessage(`保存失败: ${error.message}`, 'error');
+                    return false;
+                }
+            }
+
+            updateForm() {
+                document.getElementById('serviceUrl').value = this.settings.serviceUrl;
+                document.getElementById('autoCheck').checked = this.settings.autoCheck;
+                document.getElementById('showNotifications').checked = this.settings.showNotifications;
+                document.getElementById('enableLogging').checked = this.settings.enableLogging;
+                document.getElementById('maxRetries').value = this.settings.maxRetries;
+            }
+
+            getFormValues() {
+                this.settings.serviceUrl = document.getElementById('serviceUrl').value.trim();
+                this.settings.autoCheck = document.getElementById('autoCheck').checked;
+                this.settings.showNotifications = document.getElementById('showNotifications').checked;
+                this.settings.enableLogging = document.getElementById('enableLogging').checked;
+                this.settings.maxRetries = parseInt(document.getElementById('maxRetries').value) || 3;
+            }
+
+            async checkServiceStatus() {
+                try {
+                    this.updateStatus('检测中...', '正在检查GADA本地服务连接...', '检测中');
+                    
+                    // 更新背景脚本中的服务URL
+                    const currentUrl = document.getElementById('serviceUrl').value.trim() || this.settings.serviceUrl;
+                    
+                    const response = await chrome.runtime.sendMessage({
+                        action: 'checkService'
+                    });
+                    
+                    if (response.status?.online) {
+                        this.updateStatus('在线', 'GADA本地服务运行正常', 'online');
+                    } else {
+                        this.updateStatus('离线', '无法连接到GADA本地服务', 'offline');
+                    }
+                } catch (error) {
+                    console.error('检查服务状态失败:', error);
+                    this.updateStatus('错误', '检查服务状态时发生错误', 'offline');
+                }
+            }
+
+            updateStatus(text, info, status) {
+                const statusText = document.getElementById('statusText');
+                const statusInfo = document.getElementById('statusInfo');
+                const statusDot = document.getElementById('statusDot');
+                
+                statusText.textContent = text;
+                statusInfo.textContent = info;
+                statusDot.className = 'status-dot';
+                
+                if (status === 'online') {
+                    statusDot.classList.add('online');
+                } else if (status === 'offline' || status === '检测中') {
+                    statusDot.classList.add('offline');
+                }
+            }
+
+            async testConnection() {
+                const testBtn = document.getElementById('testBtn');
+                const testLoading = document.getElementById('testLoading');
+                const testResult = document.getElementById('testResult');
+                
+                try {
+                    // 显示加载状态
+                    testBtn.disabled = true;
+                    testLoading.classList.remove('hidden');
+                    testResult.className = 'test-result hidden';
+                    
+                    // 获取当前服务URL
+                    const serviceUrl = document.getElementById('serviceUrl').value.trim() || this.settings.serviceUrl;
+                    
+                    // 测试连接
+                    const response = await fetch(`${serviceUrl}/api/health`, {
+                        method: 'GET',
+                        mode: 'cors',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        testResult.className = 'test-result success';
+                        testResult.innerHTML = `
+                            ✅ 连接成功！<br>
+                            <small>状态: ${data.status} | 运行时间: ${Math.floor(data.uptime)}秒</small>
+                        `;
+                        this.updateStatus('在线', '连接测试成功', 'online');
+                    } else {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error('连接测试失败:', error);
+                    testResult.className = 'test-result error';
+                    testResult.textContent = `❌ 连接失败: ${error.message}`;
+                    this.updateStatus('离线', '连接测试失败', 'offline');
+                } finally {
+                    testBtn.disabled = false;
+                    testLoading.classList.add('hidden');
+                }
+            }
+
+            resetToDefaults() {
+                if (confirm('确定要恢复默认设置吗？这将重置所有自定义设置。')) {
+                    this.settings = {
+                        serviceUrl: 'http://localhost:3000',
+                        autoCheck: true,
+                        showNotifications: true,
+                        enableLogging: false,
+                        maxRetries: 3
+                    };
+                    
+                    this.updateForm();
+                    this.showMessage('已恢复默认设置', 'success');
+                }
+            }
+
+            clearCache() {
+                if (confirm('确定要清除所有缓存数据吗？这不会影响您的GADA本地服务。')) {
+                    GADAUtils.storage.clear().then(() => {
+                        this.showMessage('缓存已清除', 'success');
+                    }).catch(error => {
+                        this.showMessage(`清除缓存失败: ${error.message}`, 'error');
+                    });
+                }
+            }
+
+            exportData() {
+                // 这里可以实现数据导出功能
+                this.showMessage('数据导出功能正在开发中', 'info');
+            }
+
+            importData() {
+                // 这里可以实现数据导入功能
+                this.showMessage('数据导入功能正在开发中', 'info');
+            }
+
+            showMessage(message, type = 'info') {
+                // 在实际扩展中，这里可以显示通知
+                console.log(`${type}: ${message}`);
+                alert(message);
+            }
+
+            showVersion() {
+                const manifest = chrome.runtime.getManifest();
+                document.getElementById('versionInfo').textContent = `v${manifest.version}`;
+            }
+
+            bindEvents() {
+                // 保存按钮
+                document.getElementById('saveBtn').addEventListener('click', () => {
+                    this.saveSettings();
+                });
+                
+                // 测试连接按钮
+                document.getElementById('testBtn').addEventListener('click', () => {
+                    this.testConnection();
+                });
+                
+                // 恢复默认设置按钮
+                document.getElementById('resetBtn').addEventListener('click', () => {
+                    this.resetToDefaults();
+                });
+                
+                // 清除缓存按钮
+                document.getElementById('clearCacheBtn').addEventListener('click', () => {
+                    this.clearCache();
+                });
+                
+                // 导出数据按钮
+                document.getElementById('exportDataBtn').addEventListener('click', () => {
+                    this.exportData();
+                });
+                
+                // 导入数据按钮
+                document.getElementById('importDataBtn').addEventListener('click', () => {
+                    this.importData();
+                });
+                
+                // 关闭按钮
+                document.getElementById('closeBtn').addEventListener('click', () => {
+                    window.close();
+                });
+                
+                // 检查更新按钮
+                document.getElementById('checkUpdateBtn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.showMessage('检查更新功能正在开发中', 'info');
+                });
+                
+                // 点击外部链接时在新标签页打开
+                document.querySelectorAll('a[target="_blank"]').forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        chrome.tabs.create({ url: link.href });
+                    });
+                });
+                
+                // 表单变化时自动保存（可选）
+                // document.querySelectorAll('input, select, textarea').forEach(element => {
+                //     element.addEventListener('change', () => {
+                //         this.saveSettings();
+                //     });
+                // });
+            }
+        }
+
+        // 初始化设置页面
+        document.addEventListener('DOMContentLoaded', () => {
+            new GADAOptions();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+{
+  "manifest_version": 2,
+  "name": "GitHub Deploy Assistant (GADA)",
+  "version": "1.0.0",
+  "description": "在GitHub/Gitee仓库页面添加一键部署按钮，快速唤起本地GADA应用",
+  "author": "kai0339 <19106440339@163.com>",
+  "homepage_url": "https://gitee.com/kai0339/github-deploy-assistant",
+  
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  
+  "permissions": [
+    "activeTab",
+    "storage",
+    "http://localhost:3000/*",
+    "https://github.com/*",
+    "https://gitee.com/*"
+  ],
+  
+  "background": {
+    "scripts": ["../shared/scripts/background.js"],
+    "persistent": false
+  },
+  
+  "content_scripts": [
+    {
+      "matches": [
+        "https://github.com/*",
+        "https://gitee.com/*"
+      ],
+      "js": ["../shared/scripts/content.js"],
+      "css": ["../shared/styles/inject.css"],
+      "run_at": "document_end"
+    }
+  ],
+  
+  "browser_action": {
+    "default_title": "GADA一键部署",
+    "default_popup": "popup.html"
+  },
+  
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "gada-extension@kai0339.com",
+      "strict_min_version": "89.0"
+    }
+  }
+}
