@@ -29,7 +29,7 @@ func main() {
 	router := mux.NewRouter()
 
 	// 设置路由
-	routes.SetupRoutes(router)
+	routes.SetupAllRoutes(router)
 
 	// 配置 CORS
 	corsHandler := cors.New(cors.Options{
