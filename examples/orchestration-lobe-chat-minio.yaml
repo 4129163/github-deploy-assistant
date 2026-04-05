@@ -1,0 +1,54 @@
+# Lobe Chat + MinIO 组合部署示例
+# 一键部署AI聊天助手和对象存储服务
+
+version: "1.0"
+name: "lobe-chat-minio-stack"
+description: "Lobe Chat AI助手与MinIO对象存储组合部署"
+
+applications:
+  - name: "minio"
+    type: "docker"
+    source: "minio/minio:latest"
+    environment:
+      - "MINIO_ROOT_USER=admin"
+      - "MINIO_ROOT_PASSWORD=password123"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - "./minio-data:/data"
+    command: "server /data --console-address :9001"
+    health_check:
+      endpoint: "/minio/health/live"
+      interval: 30
+      timeout: 10
+      retries: 3
+
+  - name: "lobe-chat"
+    type: "docker-compose"
+    source: "https://github.com/lobehub/lobe-chat"
+    version: "main"
+    dependencies:
+      - "minio"
+    environment:
+      - "STORAGE_TYPE=minio"
+      - "MINIO_ENDPOINT=http://minio:9000"
+      - "MINIO_ACCESS_KEY=admin"
+      - "MINIO_SECRET_KEY=password123"
+      - "MINIO_BUCKET=lobe-chat"
+      - "ACCESS_CODE=your-access-code"
+    ports:
+      - "3210:3210"
+    health_check:
+      endpoint: "/api/health"
+      interval: 30
+      timeout: 10
+      retries: 3
+
+networks:
+  - name: "chat-network"
+    driver: "bridge"
+
+startup_order:
+  - "minio"
+  - "lobe-chat"

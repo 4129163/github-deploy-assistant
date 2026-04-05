@@ -1,0 +1,68 @@
+# Node.js + Redis + PostgreSQL 组合部署示例
+# 完整的Web应用技术栈
+
+version: "1.0"
+name: "node-redis-pg-stack"
+description: "Node.js应用 + Redis缓存 + PostgreSQL数据库"
+
+applications:
+  - name: "node-app"
+    type: "node"
+    source: "https://github.com/your-username/node-app"
+    version: "main"
+    dependencies:
+      - "postgres"
+      - "redis"
+    environment:
+      - "DATABASE_URL=postgresql://admin:secret@postgres:5432/myapp"
+      - "REDIS_URL=redis://redis:6379"
+      - "NODE_ENV=production"
+      - "PORT=3000"
+    ports:
+      - "3000:3000"
+    health_check:
+      endpoint: "/health"
+      interval: 30
+      timeout: 10
+      retries: 3
+
+dependencies:
+  - name: "postgres"
+    type: "database"
+    image: "postgres:15-alpine"
+    environment:
+      - "POSTGRES_DB=myapp"
+      - "POSTGRES_USER=admin"
+      - "POSTGRES_PASSWORD=secret"
+    ports:
+      - "5432:5432"
+    volumes:
+      - "./postgres-data:/var/lib/postgresql/data"
+    health_check:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 30
+      timeout: 10
+      retries: 3
+
+  - name: "redis"
+    type: "cache"
+    image: "redis:7-alpine"
+    ports:
+      - "6379:6379"
+    volumes:
+      - "./redis-data:/data"
+    command: "redis-server --appendonly yes"
+    health_check:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30
+      timeout: 10
+      retries: 3
+
+networks:
+  - name: "app-network"
+    driver: "bridge"
+
+startup_order:
+  - "postgres"
+  - "redis"
+  - "node-app"
