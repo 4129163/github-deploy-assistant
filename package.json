@@ -1,14 +1,16 @@
 {
   "name": "github-deploy-assistant",
-  "version": "1.0.0",
-  "description": "GitHub 项目辅助安装程序 - 自动解读仓库并部署",
+  "version": "2.0.0-i18n",
+  "description": "GitHub 项目辅助安装程序 - 自动解读仓库并部署（多语言支持）",
   "main": "src/server/index.js",
   "bin": {
     "gada": "./src/cli/index.js"
   },
   "scripts": {
-    "start": "node src/server/index.js",
-    "dev": "nodemon src/server/index.js",
+    "start": "node server-i18n.js",
+    "dev": "nodemon server-i18n.js",
+    "start:original": "node src/server/index.js",
+    "dev:original": "nodemon src/server/index.js",
     "cli": "node src/cli/index.js",
     "build": "echo 'Build complete'",
     "test": "jest --verbose",
@@ -29,6 +31,8 @@
     "ci:p1": "npm run lint && npm run test:p1 && npm run test:e2e",
     "ui": "node server.js",
     "ui:dev": "nodemon server.js",
+    "ui:i18n": "node server-i18n.js",
+    "ui:i18n-dev": "nodemon server-i18n.js",
     "secure:init": "node scripts/migrate-secure.js",
     "secure:test": "node test-secure-storage.js",
     "secure:status": "node -e \"const storage = require('./src/utils/secure-storage'); console.log('安全存储状态:', storage.isInitialized() ? '已初始化' : '未初始化');\"",
@@ -48,7 +52,11 @@
     "launchd",
     "windows-service",
     "service-management",
-    "process-daemon"
+    "process-daemon",
+    "i18n",
+    "internationalization",
+    "multilingual",
+    "localization"
   ],
   "author": "kai0339 <19106440339@163.com>",
   "license": "MIT",

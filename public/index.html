@@ -3,11 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Deploy Assistant - 可视化部署管理器</title>
+    <title data-i18n="app.title">GitHub Deploy Assistant - 可视化部署管理器</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+    <style>
+        /* 语言选择器样式 */
+        .language-selector {
+            margin-right: 10px;
+        }
+        
+        .language-dropdown {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .language-dropdown:hover {
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
+        }
+        
+        .language-dropdown:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+        }
+        
+        .language-dropdown option {
+            padding: 8px;
+        }
+        
+        /* 国际化样式 */
+        [dir="rtl"] .app-header,
+        [dir="rtl"] .sidebar,
+        [dir="rtl"] .main-content {
+            direction: rtl;
+        }
+        
+        [lang="ar"] .app-header,
+        [lang="he"] .app-header {
+            font-family: 'Arial', sans-serif;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .language-selector {
+                margin-right: 5px;
+            }
+            
+            .language-dropdown {
+                padding: 4px 8px;
+                font-size: 12px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="app-container">
@@ -16,25 +71,25 @@
             <div class="header-left">
                 <div class="logo">
                     <i class="fas fa-rocket"></i>
-                    <h1>GitHub Deploy Assistant</h1>
+                    <h1 data-i18n="app.title">GitHub Deploy Assistant</h1>
                 </div>
-                <span class="version">v2.0.0</span>
+                <span class="version" data-i18n="app.version">v2.0.0</span>
             </div>
             <div class="header-right">
                 <div class="system-status">
                     <div class="status-item">
                         <i class="fas fa-server"></i>
-                        <span class="status-text" id="system-status">运行正常</span>
+                        <span class="status-text" id="system-status" data-i18n="status.running">运行正常</span>
                     </div>
                     <div class="status-item">
                         <i class="fas fa-project-diagram"></i>
-                        <span class="status-text" id="project-count">0 个项目</span>
+                        <span class="status-text" id="project-count">0 <span data-i18n="project.list">个项目</span></span>
                     </div>
                 </div>
-                <button class="btn btn-primary btn-icon" id="settings-btn" title="设置">
+                <button class="btn btn-primary btn-icon" id="settings-btn" data-i18n-title="app.settings" title="设置">
                     <i class="fas fa-cog"></i>
                 </button>
-                <button class="btn btn-dark btn-icon" id="refresh-btn" title="刷新">
+                <button class="btn btn-dark btn-icon" id="refresh-btn" data-i18n-title="tooltip.refresh" title="刷新">
                     <i class="fas fa-sync-alt"></i>
                 </button>
             </div>
@@ -45,405 +100,231 @@
             <!-- 左侧项目列表 -->
             <aside class="sidebar">
                 <div class="sidebar-header">
-                    <h3><i class="fas fa-list"></i> 项目列表</h3>
-                    <button class="btn btn-success btn-sm" id="add-project-btn">
-                        <i class="fas fa-plus"></i> 添加项目
+                    <h3><i class="fas fa-list"></i> <span data-i18n="project.list">项目列表</span></h3>
+                    <button class="btn btn-success btn-sm" id="add-project-btn" data-i18n="project.add">
+                        <i class="fas fa-plus"></i> <span data-i18n="project.add">添加项目</span>
                     </button>
                 </div>
-                <div class="project-list" id="project-list">
+                
+                <div class="project-list-container" id="project-list-container">
                     <!-- 项目列表将通过JS动态生成 -->
-                    <div class="empty-state">
-                        <i class="fas fa-inbox"></i>
-                        <p>暂无项目</p>
-                        <button class="btn btn-primary" id="quick-add-btn">
-                            <i class="fas fa-plus-circle"></i> 快速添加
+                    <div class="empty-state" id="empty-state">
+                        <p data-i18n="project.no_projects">暂无项目</p>
+                        <button class="btn btn-outline btn-sm" id="quick-add-btn" data-i18n="project.quick_add">
+                            <i class="fas fa-plus-circle"></i> <span data-i18n="project.quick_add">快速添加</span>
                         </button>
                     </div>
                 </div>
                 
                 <!-- 模板市场入口 -->
-                <div class="market-entry-section" style="margin-bottom: 20px;">
-                    <div class="info-item" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 12px; text-align: center; cursor: pointer;" onclick="window.location.href='market-entry.html'">
-                        <i class="fas fa-store" style="font-size: 1.5rem; margin-bottom: 8px; display: block;"></i>
-                        <div style="font-weight: 600; font-size: 1.1rem;">模板市场</div>
-                        <div style="font-size: 0.85rem; opacity: 0.9; margin-top: 5px;">发现热门项目，一键部署</div>
+                <div class="market-entry" id="market-entry">
+                    <div class="market-icon">
+                        <i class="fas fa-store"></i>
+                    </div>
+                    <div class="market-info">
+                        <div style="font-weight: 600; font-size: 1.1rem;" data-i18n="template.market">模板市场</div>
+                        <div style="font-size: 0.85rem; opacity: 0.9; margin-top: 5px;" data-i18n="template.market.description">发现热门项目，一键部署</div>
                     </div>
                 </div>
-
+                
                 <!-- 系统信息 -->
                 <div class="system-info">
-                    <div class="info-item">
-                        <i class="fas fa-microchip"></i>
-                        <span>CPU: <span id="cpu-usage">0%</span></span>
+                    <h4 data-i18n="system.status">系统状态</h4>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <i class="fas fa-microchip"></i>
+                            <span data-i18n="system.cpu">CPU</span>: <span id="cpu-usage">0%</span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-memory"></i>
+                            <span data-i18n="system.memory">内存</span>: <span id="memory-usage">0%</span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-hdd"></i>
+                            <span data-i18n="system.disk">磁盘</span>: <span id="disk-usage">0%</span>
+                        </div>
                     </div>
-                    <div class="info-item">
-                        <i class="fas fa-memory"></i>
-                        <span>内存: <span id="memory-usage">0%</span></span>
-                    </div>
-                    <div class="info-item">
-                        <i class="fas fa-hdd"></i>
-                        <span>磁盘: <span id="disk-usage">0%</span></span>
-                    </div>
-                    <div class="info-item" style="margin-top: 10px;">
-                        <a href="metrics.html" class="btn btn-primary btn-sm" style="width: 100%; text-align: center;">
-                            <i class="fas fa-chart-line"></i> 查看详细监控
-                        </a>
-                    </div>
+                    <button class="btn btn-outline btn-block btn-sm" id="monitor-btn" data-i18n="monitoring.detailed">
+                        <i class="fas fa-chart-line"></i> <span data-i18n="monitoring.detailed">查看详细监控</span>
+                    </button>
                 </div>
             </aside>
 
-            <!-- 中间主操作区 -->
+            <!-- 主面板 -->
             <main class="main-panel">
                 <div class="panel-header">
-                    <h2 id="selected-project-title">选择项目进行操作</h2>
-                    <div class="project-status" id="project-status-display">
-                        <span class="status-badge status-unknown">未选择</span>
+                    <h2 id="selected-project-title" data-i18n="project.details">项目详情</h2>
+                    <div class="status-badge" id="project-status-display">
+                        <span class="status-dot"></span>
+                        <span data-i18n="status.unknown">未知状态</span>
                     </div>
                 </div>
-
-                <!-- 项目卡片（选择项目后显示） -->
-                <div class="project-card hidden" id="project-card">
+                
+                <!-- 项目信息卡片 -->
+                <div class="project-card" id="project-card" style="display: none;">
                     <div class="card-header">
                         <h3 id="project-name">项目名称</h3>
-                        <div class="project-meta">
-                            <span class="meta-item">
-                                <i class="fas fa-network-wired"></i>
-                                <span id="project-type">Node.js</span>
-                            </span>
-                            <span class="meta-item">
-                                <i class="fas fa-plug"></i>
-                                <span id="project-port">3000</span>
-                            </span>
-                            <span class="meta-item">
-                                <i class="fas fa-folder"></i>
-                                <span id="project-path">/path/to/project</span>
-                            </span>
-                        </div>
-                    </div>
-
-                    <!-- 核心操作按钮组 -->
-                    <div class="button-section">
-                        <h4><i class="fas fa-play-circle"></i> 核心操作</h4>
-                        <div class="button-group" id="core-operations">
-                            <button class="btn btn-success btn-lg" id="start-btn" disabled>
-                                <i class="fas fa-play"></i> 启动项目
+                        <div class="card-actions">
+                            <button class="btn btn-success btn-sm" id="start-btn" data-i18n="action.start">
+                                <i class="fas fa-play"></i> <span data-i18n="action.start">启动</span>
                             </button>
-                            <button class="btn btn-danger btn-lg" id="stop-btn" disabled>
-                                <i class="fas fa-stop"></i> 停止项目
+                            <button class="btn btn-danger btn-sm" id="stop-btn" data-i18n="action.stop">
+                                <i class="fas fa-stop"></i> <span data-i18n="action.stop">停止</span>
                             </button>
-                            <button class="btn btn-warning btn-lg" id="restart-btn" disabled>
-                                <i class="fas fa-redo"></i> 重启项目
+                            <button class="btn btn-warning btn-sm" id="restart-btn" data-i18n="action.restart">
+                                <i class="fas fa-redo"></i> <span data-i18n="action.restart">重启</span>
                             </button>
-                            <button class="btn btn-info btn-lg" id="logs-btn" disabled>
-                                <i class="fas fa-scroll"></i> 查看日志
+                            <button class="btn btn-info btn-sm" id="logs-btn" data-i18n="action.logs">
+                                <i class="fas fa-file-alt"></i> <span data-i18n="action.logs">查看日志</span>
                             </button>
                         </div>
                     </div>
-
-                    <!-- 配置管理按钮组 -->
-                    <div class="button-section">
-                        <h4><i class="fas fa-cogs"></i> 配置管理</h4>
-                        <div class="button-group" id="config-operations">
-                            <button class="btn btn-primary" id="edit-port-btn" disabled>
-                                <i class="fas fa-exchange-alt"></i> 修改端口
-                            </button>
-                            <button class="btn btn-primary" id="edit-env-btn" disabled>
-                                <i class="fas fa-sliders-h"></i> 环境变量
-                            </button>
-                            <button class="btn btn-primary" id="update-deps-btn" disabled>
-                                <i class="fas fa-sync"></i> 更新依赖
-                            </button>
-                            <button class="btn btn-primary" id="rebuild-btn" disabled>
-                                <i class="fas fa-hammer"></i> 重新构建
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 高级操作按钮组 -->
-                    <div class="button-section">
-                        <h4><i class="fas fa-tools"></i> 高级操作</h4>
-                        <div class="button-group" id="advanced-operations">
-                            <button class="btn btn-purple" id="backup-btn" disabled>
-                                <i class="fas fa-save"></i> 备份项目
-                            </button>
-                            <button class="btn btn-purple" id="rollback-btn" disabled>
-                                <i class="fas fa-history"></i> 回滚项目
-                            </button>
-                            <button class="btn btn-purple" id="diagnose-btn" disabled>
-                                <i class="fas fa-stethoscope"></i> 项目诊断
-                            </button>
-                            <button class="btn btn-danger" id="delete-btn" disabled>
-                                <i class="fas fa-trash"></i> 删除项目
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 折叠面板：更多选项 -->
-                    <div class="collapsible-section">
-                        <button class="collapsible-toggle" id="more-options-toggle">
-                            <i class="fas fa-chevron-down"></i> 更多选项
-                        </button>
-                        <div class="collapsible-content hidden" id="more-options">
-                            <div class="button-group">
-                                <button class="btn btn-dark" id="health-check-btn" disabled>
-                                    <i class="fas fa-heartbeat"></i> 健康检查
-                                </button>
-                                <button class="btn btn-dark" id="metrics-btn" disabled>
-                                    <i class="fas fa-chart-line"></i> 性能监控
-                                </button>
-                                <button class="btn btn-dark" id="export-config-btn" disabled>
-                                    <i class="fas fa-file-export"></i> 导出配置
-                                </button>
-                                <button class="btn btn-dark" id="import-config-btn" disabled>
-                                    <i class="fas fa-file-import"></i> 导入配置
+                    
+                    <div class="card-body">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <label data-i18n="project.type">项目类型</label>
+                                <span id="project-type">-</span>
+                            </div>
+                            <div class="info-item">
+                                <label data-i18n="project.port">端口</label>
+                                <span id="project-port">-</span>
+                                <button class="btn btn-outline btn-xs" id="edit-port-btn" data-i18n="action.edit_port">
+                                    <i class="fas fa-edit"></i> <span data-i18n="action.edit_port">编辑</span>
                                 </button>
                             </div>
+                            <div class="info-item">
+                                <label data-i18n="project.path">路径</label>
+                                <span id="project-path">-</span>
+                            </div>
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <button class="btn btn-outline btn-sm" id="edit-env-btn" data-i18n="action.edit_env">
+                                <i class="fas fa-cog"></i> <span data-i18n="action.edit_env">编辑环境变量</span>
+                            </button>
+                            <button class="btn btn-outline btn-sm" id="update-deps-btn" data-i18n="action.update_deps">
+                                <i class="fas fa-sync"></i> <span data-i18n="action.update_deps">更新依赖</span>
+                            </button>
+                            <button class="btn btn-outline btn-sm" id="rebuild-btn" data-i18n="action.rebuild">
+                                <i class="fas fa-hammer"></i> <span data-i18n="action.rebuild">重新构建</span>
+                            </button>
+                            <button class="btn btn-outline btn-sm" id="backup-btn" data-i18n="action.backup">
+                                <i class="fas fa-save"></i> <span data-i18n="action.backup">备份</span>
+                            </button>
                         </div>
                     </div>
                 </div>
-
-                <!-- 部署向导（当未选择项目时显示） -->
-                <div class="deployment-wizard" id="deployment-wizard">
-                    <div class="wizard-header">
-                        <h2><i class="fas fa-rocket"></i> 快速部署</h2>
-                        <p>一键部署GitHub项目到本地环境</p>
+                
+                <!-- 部署向导 -->
+                <div class="deployment-wizard" id="deployment-wizard" style="display: none;">
+                    <h3 data-i18n="wizard.title">部署向导</h3>
+                    <div class="wizard-steps">
+                        <div class="wizard-step active">
+                            <div class="step-number">1</div>
+                            <div class="step-label" data-i18n="wizard.step1">选择项目</div>
+                        </div>
+                        <div class="wizard-step">
+                            <div class="step-number">2</div>
+                            <div class="step-label" data-i18n="wizard.step2">配置</div>
+                        </div>
+                        <div class="wizard-step">
+                            <div class="step-number">3</div>
+                            <div class="step-label" data-i18n="wizard.step3">依赖</div>
+                        </div>
+                        <div class="wizard-step">
+                            <div class="step-number">4</div>
+                            <div class="step-label" data-i18n="wizard.step4">环境变量</div>
+                        </div>
+                        <div class="wizard-step">
+                            <div class="step-number">5</div>
+                            <div class="step-label" data-i18n="wizard.step5">部署</div>
+                        </div>
+                        <div class="wizard-step">
+                            <div class="step-number">6</div>
+                            <div class="step-label" data-i18n="wizard.step6">验证</div>
+                        </div>
                     </div>
                     
-                    <div class="deployment-buttons">
-                        <button class="btn btn-success btn-xl" id="one-click-deploy-btn">
-                            <i class="fas fa-bolt"></i> 一键智能部署
-                            <small>AI自动分析 + 自动配置</small>
-                        </button>
-                        
-                        <button class="btn btn-primary btn-xl" id="step-by-step-btn">
-                            <i class="fas fa-list-ol"></i> 分步向导部署
-                            <small>自定义每一步配置</small>
-                        </button>
-                        
-                        <button class="btn btn-purple btn-xl" id="remote-deploy-btn">
-                            <i class="fas fa-server"></i> 远程服务器部署
-                            <small>SSH到远程主机</small>
-                        </button>
+                    <div class="wizard-content">
+                        <!-- 向导内容将通过JS动态生成 -->
                     </div>
                     
-                    <div class="deployment-options">
-                        <div class="input-group">
-                            <label for="repo-url">
-                                <i class="fab fa-github"></i> GitHub仓库URL
-                            </label>
-                            <input type="url" id="repo-url" placeholder="https://github.com/username/repository">
-                            <button class="btn btn-sm btn-primary" id="analyze-btn">
-                                <i class="fas fa-search"></i> 分析仓库
-                            </button>
-                        </div>
-                        
-                        <div class="input-row">
-                            <div class="input-group">
-                                <label for="project-name-input">
-                                    <i class="fas fa-tag"></i> 项目名称
-                                </label>
-                                <input type="text" id="project-name-input" placeholder="my-project">
-                            </div>
-                            
-                            <div class="input-group">
-                                <label for="project-port-input">
-                                    <i class="fas fa-plug"></i> 端口号
-                                </label>
-                                <input type="number" id="project-port-input" placeholder="3000" min="1024" max="65535">
-                            </div>
-                        </div>
-                        
-                        <div class="checkbox-group">
-                            <label>
-                                <input type="checkbox" id="private-repo-checkbox"> 私有仓库
-                            </label>
-                            <label>
-                                <input type="checkbox" id="auto-start-checkbox" checked> 部署后自动启动
-                            </label>
-                            <label>
-                                <input type="checkbox" id="create-backup-checkbox" checked> 创建备份
-                            </label>
-                        </div>
+                    <div class="wizard-actions">
+                        <button class="btn btn-secondary" id="wizard-prev" data-i18n="wizard.previous">上一步</button>
+                        <button class="btn btn-primary" id="wizard-next" data-i18n="wizard.next">下一步</button>
+                        <button class="btn btn-outline" id="wizard-cancel" data-i18n="wizard.cancel">取消</button>
                     </div>
+                </div>
+                
+                <!-- 空状态 -->
+                <div class="empty-main-state" id="empty-main-state">
+                    <div class="empty-icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <h3 data-i18n="project.no_projects">暂无项目</h3>
+                    <p data-i18n="app.info">请添加一个项目开始部署</p>
+                    <button class="btn btn-primary btn-lg" id="main-add-btn" data-i18n="project.add">
+                        <i class="fas fa-plus"></i> <span data-i18n="project.add">添加项目</span>
+                    </button>
                 </div>
             </main>
-
-            <!-- 右侧系统面板 -->
-            <aside class="sidebar-right">
-                <div class="panel-card">
-                    <h3><i class="fas fa-tachometer-alt"></i> 系统状态</h3>
-                    <div class="status-grid">
-                        <div class="status-card status-good">
-                            <i class="fas fa-check-circle"></i>
-                            <div class="status-content">
-                                <h4>API服务</h4>
-                                <p>运行正常</p>
-                            </div>
-                        </div>
-                        <div class="status-card status-warning">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <div class="status-content">
-                                <h4>磁盘空间</h4>
-                                <p>剩余 15GB</p>
-                            </div>
-                        </div>
-                        <div class="status-card status-good">
-                            <i class="fas fa-network-wired"></i>
-                            <div class="status-content">
-                                <h4>网络连接</h4>
-                                <p>正常</p>
-                            </div>
-                        </div>
-                        <div class="status-card status-good">
-                            <i class="fas fa-database"></i>
-                            <div class="status-content">
-                                <h4>数据库</h4>
-                                <p>已连接</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="panel-card">
-                    <h3><i class="fas fa-bolt"></i> 快捷操作</h3>
-                    <div class="quick-actions">
-                        <button class="btn btn-sm btn-success">
-                            <i class="fas fa-plus"></i> 新建项目
-                        </button>
-                        <button class="btn btn-sm btn-primary">
-                            <i class="fas fa-search"></i> 搜索项目
-                        </button>
-                        <button class="btn btn-sm btn-warning">
-                            <i class="fas fa-cog"></i> 系统设置
-                        </button>
-                        <button class="btn btn-sm btn-info">
-                            <i class="fas fa-question-circle"></i> 帮助文档
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="panel-card">
-                    <h3><i class="fas fa-history"></i> 最近活动</h3>
-                    <div class="activity-list">
-                        <div class="activity-item">
-                            <i class="fas fa-play activity-success"></i>
-                            <div class="activity-content">
-                                <p><strong>my-app</strong> 项目已启动</p>
-                                <span class="activity-time">2分钟前</span>
-                            </div>
-                        </div>
-                        <div class="activity-item">
-                            <i class="fas fa-download activity-info"></i>
-                            <div class="activity-content">
-                                <p><strong>react-app</strong> 依赖更新完成</p>
-                                <span class="activity-time">15分钟前</span>
-                            </div>
-                        </div>
-                        <div class="activity-item">
-                            <i class="fas fa-code-branch activity-primary"></i>
-                            <div class="activity-content">
-                                <p><strong>api-service</strong> 从GitHub克隆</p>
-                                <span class="activity-time">1小时前</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </aside>
         </div>
 
-        <!-- 底部日志面板 -->
-        <div class="bottom-panel">
-            <div class="panel-header">
-                <h3><i class="fas fa-terminal"></i> 实时日志</h3>
-                <div class="panel-controls">
-                    <button class="btn btn-sm btn-dark" id="clear-logs-btn">
-                        <i class="fas fa-trash"></i> 清空
-                    </button>
-                    <button class="btn btn-sm btn-dark" id="pause-logs-btn">
-                        <i class="fas fa-pause"></i> 暂停
-                    </button>
-                    <button class="btn btn-sm btn-dark" id="export-logs-btn">
-                        <i class="fas fa-download"></i> 导出
-                    </button>
-                    <button class="btn btn-sm btn-dark" id="toggle-logs-btn">
-                        <i class="fas fa-chevron-up"></i>
-                    </button>
-                </div>
+        <!-- 页脚 -->
+        <footer class="app-footer">
+            <div class="footer-left">
+                <span data-i18n="app.title">GitHub Deploy Assistant</span> • 
+                <span data-i18n="app.version">v2.0.0</span>
             </div>
-            <div class="log-container" id="log-container">
-                <div class="log-entry log-info">
-                    <span class="log-time">12:43:45</span>
-                    <span class="log-level">INFO</span>
-                    <span class="log-message">GitHub Deploy Assistant 已启动，等待连接...</span>
-                </div>
-                <div class="log-entry log-success">
-                    <span class="log-time">12:43:50</span>
-                    <span class="log-level">SUCCESS</span>
-                    <span class="log-message">API服务运行正常，端口: 3000</span>
-                </div>
-                <div class="log-entry log-warning">
-                    <span class="log-time">12:44:10</span>
-                    <span class="log-level">WARNING</span>
-                    <span class="log-message">检测到新版本可用 (v2.1.0)</span>
-                </div>
+            <div class="footer-right">
+                <a href="#" data-i18n="app.help">帮助</a> • 
+                <a href="#" data-i18n="app.about">关于</a> • 
+                <span data-i18n="app.language">语言</span>: 
+                <select id="footer-language" class="language-dropdown">
+                    <option value="en" data-icon="🇺🇸">English</option>
+                    <option value="zh-CN" data-icon="🇨🇳">中文</option>
+                    <option value="ja" data-icon="🇯🇵">日本語</option>
+                </select>
             </div>
-        </div>
+        </footer>
     </div>
 
-    <!-- 模态框容器 -->
-    <div class="modal-overlay hidden" id="modal-overlay">
-        <div class="modal" id="modal">
-            <div class="modal-header">
-                <h3 id="modal-title">模态框标题</h3>
-                <button class="btn btn-icon btn-sm" id="modal-close-btn">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body" id="modal-body">
-                <!-- 模态框内容 -->
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="modal-cancel-btn">取消</button>
-                <button class="btn btn-primary" id="modal-confirm-btn">确认</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 恢复部署面板 -->
-    <div class="resume-deploy-panel" id="resume-deploy-panel" style="display: none;">
-        <div class="panel-header">
-            <h4>
-                <i class="fas fa-redo"></i>
-                可恢复的部署
-                <span class="badge badge-warning" id="resume-count-badge" style="display: none;">0</span>
-            </h4>
-            <div class="panel-controls">
-                <button class="btn btn-sm btn-outline-secondary" id="refresh-resume-btn" title="刷新">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" id="clear-all-resume-btn" title="清除所有">
-                    <i class="fas fa-trash"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" id="toggle-resume-panel" title="折叠">
-                    <i class="fas fa-chevron-up"></i>
-                </button>
-            </div>
-        </div>
-        <div class="panel-content">
-            <div class="resume-list" id="resume-list">
-                <!-- 可恢复的部署列表将在这里动态生成 -->
-                <div class="empty-state">
-                    <i class="fas fa-check-circle"></i>
-                    <p>没有可恢复的部署</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="js/deploy-log.js"></script>
-    <script src="js/deploy-resume.js"></script>
+    <!-- JavaScript文件 -->
+    <script src="js/i18n/i18n.js"></script>
     <script src="js/main.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/api.js"></script>
+    
+    <script>
+        // 初始化i18n
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化国际化
+            I18n.init();
+            
+            // 设置页脚语言选择器
+            const footerLangSelect = document.getElementById('footer-language');
+            if (footerLangSelect) {
+                footerLangSelect.value = I18n.getCurrentLanguage();
+                footerLangSelect.addEventListener('change', function(e) {
+                    I18n.setLanguage(e.target.value);
+                });
+            }
+            
+            // 监听语言变化事件
+            document.addEventListener('languageChanged', function(e) {
+                console.log('Language changed to:', e.detail.language);
+                // 更新页脚语言选择器
+                if (footerLangSelect) {
+                    footerLangSelect.value = e.detail.language;
+                }
+            });
+            
+            // 初始化主应用
+            if (typeof initApp === 'function') {
+                initApp();
+            }
+        });
+    </script>
 </body>
 </html>
